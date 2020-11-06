@@ -1,0 +1,763 @@
+---
+title: 'Week 6: More Regression'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "MTH 366: Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=FALSE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+
+## Linear models
+
+Linear regression models have some limitations in terms of prediction:
+
+1. Real-life relationships are _rarely_ linear
+2. Reducing the dimensionality or complexity through shrinkage can only do so much
+
+--
+
+We might be able to improve our predictions with a _nonparametric_ model:
+
+1. Basis functions
+2. Regression splines
+3. Smoothing splines
+
+---
+
+## Basis functions
+
+__Basis function__: a basis function is a function or transformation that can be applied to an input variable x
+
+Instead of fitting a linear model to $X$, we fit:
+
+$$Y_i = \beta_0 + \beta_1 b_1(X_i) + \beta_2 b_2(X_i) + ... + \beta_K b_K(X_i) + \epsilon$$
+
+where $b_1(\circ), ... , b_K(\circ)$ are fixed and known _basis functions_.
+
+---
+
+## Common basis functions
+
+__Polynomial regression__ models use basis functions:
+
+$$Y_i = \beta_0 + \beta_1 X_i + \beta_2 X_i^2 + ... + \beta_K X_i^K + \epsilon$$
+
+--
+
+So do "piecewise functions".
+
+--
+
+However, the most common application of basis functions in machine learning is building __regression splines__.
+
+---
+
+## Example: Wage data
+
+Consider a simple example, predicting income based on age using the `Wage` data set.
+
+Load the data from BlueLine or the `ISLR` package in R:
+
+```{r, message=FALSE, warning=FALSE}
+library(ISLR)
+data(Wage)
+
+library(tidyverse)
+library(caret)
+```
+
+---
+
+Variable|Description
+-----|------
+`year`|Year that wage information was recorded
+`age`|Age of worker
+`maritl`|A factor with levels 1. Never Married 2. Married 3. Widowed 4. Divorced and 5. Separated indicating marital status
+`race`|A factor with levels 1. White 2. Black 3. Asian and 4. Other indicating race
+`education`|A factor with levels 1. < HS Grad 2. HS Grad 3. Some College 4. College Grad and 5. Advanced Degree indicating education level
+`region`|Region of the country (mid-atlantic only)
+`jobclass`|A factor with levels 1. Industrial and 2. Information indicating type of job
+`health`|A factor with levels 1. <=Good and 2. >=Very Good indicating health level of worker
+`health_ins`|A factor with levels 1. Yes and 2. No indicating whether worker has health insurance
+`logwage`|Log of workers wage
+`wage`|Workers raw wage
+
+---
+
+What's up with the separation of points?
+
+```{r}
+Wage %>% ggplot(aes(x=age, y=wage)) + geom_point()
+```
+
+---
+
+Possible explanations:
+
+```{r}
+Wage %>% ggplot(aes(x=age, y=wage)) +
+  geom_point(aes(col=maritl))
+```
+
+---
+
+Possible explanations:
+
+```{r}
+Wage %>% ggplot(aes(x=age, y=wage)) +
+  geom_point(aes(col=race))
+```
+
+---
+
+Possible explanations:
+
+```{r}
+Wage %>% ggplot(aes(x=age, y=wage)) +
+  geom_point(aes(col=education))
+```
+
+---
+
+Possible explanations:
+
+```{r}
+Wage %>% ggplot(aes(x=age, y=wage)) +
+  geom_point(aes(col=region))
+```
+
+---
+
+Possible explanations:
+
+```{r}
+Wage %>% ggplot(aes(x=age, y=wage)) +
+  geom_point(aes(col=jobclass))
+```
+
+---
+
+Possible explanations:
+
+```{r}
+Wage %>% ggplot(aes(x=age, y=wage)) +
+  geom_point(aes(col=health))
+```
+
+---
+
+Possible explanations:
+
+```{r}
+Wage %>% ggplot(aes(x=age, y=wage)) +
+  geom_point(aes(col=health_ins))
+```
+
+---
+
+For now, we might be stuck. Clearly the linear model will not be sufficient.
+
+```{r}
+Wage %>% ggplot(aes(x=age, y=wage)) +
+  geom_point() + 
+  geom_smooth(method='lm')
+```
+
+---
+
+## Piecewise polynomials
+
+Instead of fitting a high-degree polynomial over the entire range of $X$,  _piecewise polynomial regression_ involves fitting separate, lower-degree polynomials over separate regions of $X$.
+
+For example, instead of fitting a cubic regression model over all $X$,
+
+$$Y_i = \beta_0 + \beta_1 X_i + \beta_2 X_i^2 + \beta_3 X_i^3 + \epsilon$$
+
+split the range of $X$ into two pieces:
+
+---
+
+## Piecewise polynomials
+
+$$Y_{i}=\begin{cases}
+\beta_{01}+\beta_{11}X_{i}+\beta_{21}X_{i}^{2}+\beta_{31}X_{i}^{3}+\epsilon_{i} & X_{i}\le c\\
+\beta_{02}+\beta_{12}X_{i}+\beta_{22}X_{i}^{2}+\beta_{32}X_{i}^{3}+\epsilon_{i} & X_{i}>c
+\end{cases}$$
+
+The point where the coefficients change, $c$, is called a __knot__.
+
+---
+
+## Example: Wage data
+
+To get an idea of how this works, we'll define a single knot, and build the model.
+
+```{r}
+# Take the median age as our "knot"
+c <- median(Wage$age)
+c
+
+model_less_c <- lm(wage ~ age + I(age^2) + I(age^3), 
+                   data = Wage[Wage$age <= c,])
+
+model_less_c
+```
+
+---
+
+```{r}
+model_more_c <- lm(wage ~ age + I(age^2) + I(age^3), 
+                   data = Wage[Wage$age > c,])
+
+model_more_c
+```
+
+---
+
+## Piecewise polynomials
+
+Our estimated model is:
+
+$$Y_{i}=\begin{cases}
+-28.626+4.600X_{i}+0.041X_{i}^{2}-0.002X_{i}^{3}+\epsilon_{i} & X_{i}\le42\\
+660.460-29.725X_{i}+0.541X_{i}^{2}-0.003X_{i}^{3}+\epsilon_{i} & X_{i}>42
+\end{cases}$$
+
+What does this model look like compared to the linear model?
+
+---
+
+## Piecewise polynomials
+
+Problems with this approach:
+
+```{r, echo=FALSE}
+age1 <- seq(from=min(Wage$age), to=c, length=50)
+y1 <- -28.626 + 4.600*age1 + 0.041*age1^2 -0.002*age1^3
+
+age2 <- seq(from=c, to=max(Wage$age), length=50)
+y2 <- 660.460 - 29.725*age2 + 0.541*age2^2 - 0.003*age2^3
+
+pred <- tibble(x=c(age1, age2), y=c(y1, y2))
+
+Wage %>% ggplot(aes(x=age, y=wage)) + 
+  geom_point(alpha=0.5) + 
+  geom_smooth(method='lm', col='blue', se=FALSE, lwd=1.5) + 
+  geom_line(data=pred, aes(x=x, y=y), col='red', lwd=1.5)
+```
+
+---
+
+## Piecewise polynomials
+
+Solution: Use more knots!
+
+```{r}
+quantile(Wage$age, c(0.25, 0.5, 0.75))
+```
+
+Build four models:
+
+- $X_i <= 33.75$
+- $33.75 < X_i <= 42$
+- $42 < X_i <= 51$
+- $51 < X_i$
+
+---
+
+## Piecewise polynomials
+
+The full code is in your notes, here's the result:
+
+```{r, echo=FALSE}
+# To make this a bit easier, sort the data first
+Wage_Sorted <- Wage %>% arrange(age)
+
+Wage1 <- Wage_Sorted[1:750, ]
+Wage2 <- Wage_Sorted[751:1500, ]
+Wage3 <- Wage_Sorted[1501:2250, ]
+Wage4 <- Wage_Sorted[2251:3000, ]
+
+model1 <- lm(wage ~ age + I(age^2) + I(age^3), data=Wage1)
+model2 <- lm(wage ~ age + I(age^2) + I(age^3), data=Wage2)
+model3 <- lm(wage ~ age + I(age^2) + I(age^3), data=Wage3)
+model4 <- lm(wage ~ age + I(age^2) + I(age^3), data=Wage4)
+
+pred <- tibble(x=Wage_Sorted$age, y=c(model1$fitted.values,
+                                      model2$fitted.values,
+                                      model3$fitted.values,
+                                      model4$fitted.values))
+
+
+Wage %>% ggplot(aes(x=age, y=wage)) + 
+  geom_point(alpha=0.5) + 
+  geom_smooth(method='lm', col='blue', se=FALSE, lwd=1.5) + 
+  geom_line(data=pred, aes(x=x, y=y), col='red', lwd=1.5) + 
+  geom_vline(xintercept=c(33.75, 42, 51), lty='dotted', col='red')
+```
+
+---
+
+## Piecewise polynomials
+
+There are some problems with this approach: 
+
+1. What do we predict at the knots? 
+2. How do we know how many knots to use?
+3. How can we get a _smoother_ prediction curve?
+
+---
+
+## Constraints
+
+A more constrained approach:
+
+1. Restrict the set of fitted curves to those for which there are _no discontinuities_ in $\hat{Y}_i$ at the knot points
+2. Further restrict the set of fitted curves to those for which the _first and second derivatives_ are continuous at the knot points
+
+---
+
+## Splines
+
+__degree-d spline__: A degree $d$ spline is a piecewise degree $d$ polynomial, with continuity in derviatives up to degree $d-1$ at each knot
+
+- How can we fit these?
+
+---
+
+## Splines and basis functions
+
+A degree-d polynomial spline with $K$ knots on a single input variable can be modeled as:
+
+$$Y_i = \beta_0 + \beta_1 b_1 (X_i) + \beta_2 b_2(X_i) + ... + \beta_{K+d} b_{K+d} (X_i) + \epsilon_i$$
+
+--
+
+The most direct way to set this up is to start with a basis function for each power of the polynomial:
+
+- $X_i, X_i^2, X_i^3$
+
+then add one _truncated power basis_ function per knot.
+
+$$h(x,c)=(x-c)_{+}^{d}=\begin{cases}
+(x-c)^{d} & if\ x>c\\
+0 & else
+\end{cases}$$
+
+---
+
+## Example: Wage data
+
+Let's apply this method to the wage data.
+
+```{r, warning=FALSE}
+library(caret)
+trainIndex <- createDataPartition(Wage$wage, 
+                                  p = 0.70, 
+                                  list = FALSE, 
+                                  times = 1)
+
+Wage_Train <- Wage[trainIndex, ]
+Wage_Test <- Wage[-trainIndex, ]
+```
+
+- _Hang on_: What does a "balanced" training-testing split look like in regression?
+
+---
+
+```{r}
+library(gridExtra)
+p1 <- Wage_Train %>% ggplot(aes(x=wage)) + 
+  geom_histogram(fill='#3182bd') + 
+  labs(title='Training data')
+p2 <- Wage_Test %>% ggplot(aes(x=wage)) + 
+  geom_histogram(fill='#756bb1') + 
+  labs(title='Testing data')
+
+grid.arrange(p1, p2, nrow=1)
+```
+
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(mosaic)
+
+favstats(~wage, data=Wage_Train)
+favstats(~wage, data=Wage_Test)
+```
+
+---
+
+## `library(splines)`
+
+Unfortunately, the `caret` package does not include a _straightforward_ implementation of spline regression...
+
+```{r}
+# splines is a "base" package, you don't need to install it
+library(splines)
+
+# bs() constructs basis functions
+# Cubic splines are used by default
+model_splines <- lm(wage ~ bs(age, 
+                              knots=c(33.75, 42, 51)), 
+                    data = Wage_Train)
+```
+
+---
+
+- What do each of the six terms represent?
+- Which terms are "significant"/non-"significant"?
+
+```{r}
+summary(model_splines)
+```
+
+---
+
+Does the spline model represent an improvement?
+
+1. Fit a cubic model over the entire data set.
+2. Calculate model fit statistics (RMSE, adjusted R-squared, etc.) on the training and testing data for both models.
+3. Plot the fit for both models.
+
+```{r}
+model_cubic <- lm(wage ~ age + I(age^2) + I(age^3), data=Wage_Train)
+summary(model_cubic)
+```
+
+---
+
+## To spline or not to spline?
+
+```{r}
+Wage_Train <- Wage_Train %>% mutate(
+  pred_spline = model_splines$fitted.values,
+  pred_cubic= model_cubic$fitted.values)
+
+Wage_Train %>% summarize(
+  RMSE_spline = sqrt(mean((wage - pred_spline)^2)),
+  RMSE_cubic = sqrt(mean((wage - pred_cubic)^2)))
+```
+
+Repeat on testing data "off-screen"...
+
+---
+
+```{r, echo=FALSE}
+library(splines)
+Wage_Test <- Wage_Test %>% mutate(
+  pred_spline = predict(model_splines, Wage_Test),
+  pred_cubic= predict(model_cubic, Wage_Test))
+```
+
+Model|Spline with 3 knots|No splines
+-----|----------|---------
+Training RMSE|40.33181|40.36158
+Training adjusted R-squared| 0.09127 | 0.09124
+Testing RMSE|38.75204|38.83477
+
+Have we seen an improvement?
+
+---
+
+```{r}
+p1 <- Wage_Test %>% ggplot(aes(x=age, y=wage)) + 
+  geom_point(alpha=0.5) + 
+  geom_line(aes(x=age, y=pred_spline), col='#3182bd', lwd=2) + 
+  labs(title='Actual v. predicted (splines)')
+p2 <- Wage_Test %>% ggplot(aes(x=age, y=wage)) + 
+  geom_point(alpha=0.5) + 
+  geom_line(aes(x=age, y=pred_cubic), col='#756bb1', lwd=2) + 
+  labs(title='Actual v. predicted (cubic)')
+```
+
+---
+
+```{r}
+library(patchwork)
+
+p1 + p2
+```
+
+---
+
+Let's get "knotty"! Place a knot at every 10-th percentile:
+
+```{r}
+model_10knots <- lm(wage ~ bs(age, 
+                              knots=quantile(Wage$age, 1:10/10)), 
+                    data = Wage_Train)
+```
+
+```{r, echo=FALSE}
+Wage_Test <- Wage_Test %>% mutate(
+  pred_10knots = predict(model_10knots, Wage_Test))
+
+p1 <- Wage_Test %>% ggplot(aes(x=age, y=wage)) + 
+  geom_point(alpha=0.5) + 
+  geom_line(aes(x=age, y=pred_spline), col='#3182bd') + 
+  labs(title='K = 3 (RMSE 38.75)')
+p2 <- Wage_Test %>% ggplot(aes(x=age, y=wage)) + 
+  geom_point(alpha=0.5) + 
+  geom_line(aes(x=age, y=pred_cubic), col='#756bb1') + 
+  labs(title='K = 0 (RMSE 38.83)')
+p3 <- Wage_Test %>% ggplot(aes(x=age, y=wage)) + 
+  geom_point(alpha=0.5) + 
+  geom_line(aes(x=age, y=pred_10knots), col='#de2d26') + 
+  labs(title='K = 10 (RMSE 38.84)')
+
+grid.arrange(p1, p2, p3, nrow=1)
+```
+
+---
+
+## MARS `r icon::fa("arrow-right")` earth
+
+__Multivariate adaptive regression splines__: MARS uses one of the simplest basis functions, with a degree-1 polynomial
+
+```{r, out.width = "750px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_MARS.png")
+```
+
+---
+
+## MARS `r icon::fa("arrow-right")` earth
+
+Most open-source implementations of MARS in .blue[R] or .green[Python] don't refer to this technique as "MARS". They call it "earth" instead.
+
+- Why??
+
+--
+
+.full-width[.content-box-red[In the pre-open source days (early 90s), MARS was built into a software system produced by Salford Systems. They trademarked the name.
+
+- So, MARS `r icon::fa("arrow-right")` earth
+
+---
+
+## Taking off
+
+```{r}
+model_mars <- train(
+  form = wage ~ age,
+  data = Wage_Train,
+  method = "earth")
+```
+
+---
+
+```{r}
+model_mars
+```
+
+---
+
+```{r}
+plot(model_mars)
+```
+
+---
+
+```{r}
+Wage_Test <- Wage_Test %>% mutate(pred_degree = predict(model_mars, Wage_Test))
+
+Wage_Test %>% ggplot(aes(x=age, y=wage)) + 
+  geom_point(alpha=0.5) + 
+  geom_line(aes(x=age, y=pred_degree), col='#756bb1')
+```
+
+---
+
+## Tuning parameters
+
+There are two tuning parameters for `method = "earth"`:
+
+- `nprune`: maximum number of terms (including intercept) in the "pruned" model. MARS uses stepwise regression techniques to remove non-significant terms.
+
+    - `nprune = 3`: intercept + 2 knots?
+
+- `degree`: maximum "degree of interaction". The default setting is 1, which means include additive terms only. Degree=2 will add interaction terms if multiple variables are specified.
+
+---
+
+## Splines in `caret`
+
+Some of the methods are well-implemented in `caret`: splines are an exception.
+
+- For more control, use the base R `splines` library
+
+--
+
+This happens in Python too (though perhaps for different methods)!
+
+--
+
+Open-source content development is a labor of love, and only sometimes a job.
+
+---
+
+## Manual model tuning
+
+How can we tune our model manually?
+
+--
+
+![](http://www.quickmeme.com/img/54/540c1f0a68918de905cadeb944fdea46c1f1fe9c8808512d88fe1866beae02ef.jpg)
+
+---
+
+To fit a spline model using "base R", we previously inputted the knot points, $c_i$. What if we use an integer instead?
+
+```{r}
+model_splines <- lm(wage ~ bs(age, 
+                              knots=4), 
+                    data = Wage_Train)
+
+summary(model_splines)
+```
+
+---
+
+How can we automate selection of $k$ knots?
+
+- `df` specifies the "degrees of freedom": R will choose `df - 1` knots for models with an intercept term
+- `degree` indicates the degree of the piecewise polynomial, by default this is 3
+
+```{r}
+model_splines <- lm(wage ~ bs(age,
+                              df = 4, degree = 3), 
+                    data = Wage_Train)
+```
+
+---
+
+```{r}
+summary(model_splines)
+```
+
+---
+
+## Tuning our splines
+
+1. `summary(model_splines)` output looks more reasonable, this is probably what we want.
+2. We need a plan!
+
+--
+
+### The plan
+
+- Number of knots: $k \in 3, ..., 15$
+- Polynomial degree: $p \in 1, ..., 4$
+
+--
+
+How many combinations? How should we evaluate our results?
+
+---
+
+```{r}
+df <- 4:15
+p <- 1:4
+
+results <- matrix(nrow=length(df)*length(p),
+                  ncol=3)
+
+colnames(results) <- c('df', 'p', 'RMSE')
+
+row <- 1
+```
+
+---
+
+```{r}
+library(MLmetrics)
+
+for(i in 1:length(df)){
+  for(j in 1:length(p)){
+    
+    model <- lm(wage ~ bs(age, df = df[i], degree = p[j]), 
+                    data = Wage_Train)
+    
+    pred <- predict(model, Wage_Test)
+    
+    results[row, 1] <- df[i]
+    results[row, 2] <- p[j]
+    results[row, 3] <- RMSE(y_pred = pred,
+                         y_true = Wage_Test$wage)
+    
+    row <- row + 1
+    
+  }
+}
+
+```
+
+---
+
+```{r}
+head(results)
+```
+
+---
+
+```{r}
+as.data.frame(results) %>% 
+  ggplot(aes(x=df, y=RMSE)) +
+  geom_point(aes(col=p)) + 
+  geom_line(aes(group=p, col=p))
+
+```

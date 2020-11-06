@@ -1,0 +1,386 @@
+---
+title: 'Week 1: Introduction to Machine Learning'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=TRUE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+## Machine or statistical learning?
+
+__Machine learning__: the field of study interested in the development of algorithms to transform data into actionable knowledge
+
+> [Machine Learning is the] field of study that gives computers the ability to learn without being explicitly programmed.
+—Arthur Samuel, 1959
+
+> Machine learning is the science (and art) of programming computers so they can learn from data.
+
+---
+
+## Machine or statistical learning?
+
+__Statistical models__: a mathematical model that embodies a set of statistical assumptions concerning the generation of sample data (and similar data from a larger population). A statistical model represents, often in considerably idealized form, the data-generating process.
+
+> "All models are wrong, but some models are useful." - George Box
+
+
+Why _statistical learning_?
+
+---
+
+## Statistical learning
+
+One possible definition? 
+
+> “The major difference between machine learning and statistics is their purpose. Machine learning models are designed to make the most accurate predictions possible. Statistical models are designed for inference about the relationships between variables.”
+
+---
+
+## Statistical learning
+
+One possible definition? 
+
+>“The major difference between machine learning and statistics is their purpose. Machine learning models are designed to make the most accurate predictions possible. Statistical models are designed for inference about the relationships between variables.”
+
+- Kind of? It's more like this.
+
+---
+
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("10yearchallenge.jpg")
+```
+
+---
+
+
+```{r, out.width = "500px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("logisticregression.jpg")
+```
+
+---
+
+## Some supervision needed
+
+Broadly speaking, machine learning tasks fall into two categories:
+
+__Supervised machine learning__: we have variable(s) in our data that represent a "right answer"
+
+__Unsupervised machine learning__: we _don't_ have variable(s) in our data that represent a "right answer"
+
+---
+
+
+```{r, out.width = "800px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("machinelearning.jpg")
+```
+
+_Image credit: https://vas3k.com/blog/machine_learning/_
+
+---
+
+## Supervised or unsupervised?
+
+Parameters|Supervised learning|Unsupervised learning
+--------|-----------------------------------------------|-----------------------------------------------
+Input Data| Algorithms are trained using labeled data. | Algorithms are used against data which is not labelled
+Computational Complexity | Supervised learning is a simpler method.|	Unsupervised learning is computationally complex
+Accuracy |	Highly accurate and trustworthy method.| Less accurate and trustworthy method.
+
+---
+
+
+## Example: BotSentinel
+
+https://botsentinel.com/
+
+__Machine Learning Model__
+
+> Researchers rarely agree on what someone considers a troll or what constitutes harmful bot activity, so we took a different approach when training our machine learning model. Instead of creating a model based on our interpretation of a troll or bot, we used Twitter rules as a guide when selecting Twitter accounts to train our model. We searched for accounts that were repeatedly violating Twitter rules and we trained our model to identify accounts similar to the accounts we identified as “trollbots.” Note: Ideology, political affiliation, religious beliefs, geographic location, or frequency of tweets are not factors when determining the classification of a Twitter account.
+
+What type of machine learning problem is this?
+
+---
+
+## Machine learning in practice
+
+1. __Data collection__: gathering the learning material (data) an algorithm will use to generate actionable knowledge
+
+
+---
+
+## Machine learning in practice
+
+1. .grey[__Data collection__: gathering the learning material (data) an algorithm will use to generate actionable knowledge]
+2. __Data exploration and preparation__: "messy" data should be cleaned if possible; visualizing the data can help us see what relationships/patterns we might expect
+
+
+---
+
+## Machine learning in practice
+
+1. .grey[__Data collection__: gathering the learning material (data) an algorithm will use to generate actionable knowledge]
+2. .grey[__Data exploration and preparation__: "messy" data should be cleaned if possible; visualizing the data can help us see what relationships/patterns we might expect]
+3. __Model training__: the type of data available and the task will suggest appropriate algorithm(s) for _modeling_ the data
+
+---
+
+## Machine learning in practice
+
+1. .grey[__Data collection__: gathering the learning material (data) an algorithm will use to generate actionable knowledge]
+2. .grey[__Data exploration and preparation__: "messy" data should be cleaned if possible; visualizing the data can help us see what relationships/patterns we might expect]
+3. .grey[__Model training__: the type of data available and the task will suggest appropriate algorithm(s) for _modeling_ the data]
+4. __Model evaluation__: each machine learning model should be evaluated to determine how well the model has learned and whether the model has any "blind spots"
+
+
+---
+
+## Machine learning in practice
+
+1. .grey[__Data collection__: gathering the learning material (data) an algorithm will use to generate actionable knowledge]
+2. .grey[__Data exploration and preparation__: "messy" data should be cleaned if possible; visualizing the data can help us see what relationships/patterns we might expect]
+3. .grey[__Model training__: the type of data available and the task will suggest appropriate algorithm(s) for _modeling_ the data]
+4. .grey[__Model evaluation__: each machine learning model should be evaluated to determine how well the model has learned and whether the model has any "blind spots"]
+5. __Model improvement__: if needed, try another type of model or fine-tune the model you started with
+
+---
+
+
+## Example: Advertising data
+
+Suppose that we are consultants that have been hired to provide advice on sales of a particular product. We have been given sales data on that product in 200 markets, along with advertising budgets for TV, radio, and newspaper advertisements.
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+#Advertising <- read.csv("~/OneDrive - Creighton University/MTH 366 - Machine Learning/Class Notes/Advertising.csv")
+Advertising <- read.csv("C:/Users/ads67836/OneDrive - Creighton University/MTH 366 - Machine Learning/Class Notes/Advertising.csv")
+
+library(tidyverse)
+head(Advertising)
+```
+
+---
+
+## Terminology and notation
+
+Our variables can be grouped into two categories: __inputs__ and __outputs__.
+
+- Input variables: `TV`, `radio`, `newspaper`
+
+- Output variable: `sales`
+
+More generally, suppose we observe a quantitative output variable $Y$ and some $p$ input variables $X = (X_1, X_2, ..., X_p)$. 
+
+---
+
+## Terminology and notation
+
+Our variables can be grouped into two categories: __inputs__ and __outputs__.
+
+- Input variables: `TV`, `radio`, `newspaper`
+
+- Output variable: `sales`
+
+More generally, suppose we observe a quantitative output variable $Y$ and some $p$ input variables $X = (X_1, X_2, ..., X_p)$. 
+
+(In statistics...)
+
+- Input variable = explanatory variable
+- Output variable = response variable
+
+---
+
+## Terminology and notation
+
+Assume that there is some relationship between $Y$ and $X$ that can be written as:
+
+$$Y = f(X) + \epsilon$$
+
+- $f(X)$ is some fixed but unknown function of $X_1, ..., X_p$ 
+- $\epsilon$ is a random error term, independent of the $X$'s, with mean zero
+
+Why do we care about $f(X)$?
+
+---
+
+## Prediction
+
+In many situations, a set of inputs $X$ are easily obtained, but the output $Y$ cannot be observed so easily. Since the error averages to zero, we can __predict__ $Y$ using 
+
+$$\hat{Y} = \hat{f}(X)$$
+
+In this setting, $f(X)$ may be a pre-defined function, or a __black box__ function.
+
+```{r, out.width = "750px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_blackbox.png")
+```
+
+---
+
+## Inference 
+
+What if we want to know how $Y$ changes as $X_1, ..., X_p$ change? Or we have a theory about the relationship between $Y$ and $X$?
+
+In that case, we might want to use __statistical inference__ to tell us whether a particular form of the model is correct.
+
+---
+
+## Inference 
+
+What if we want to know how $Y$ changes as $X_1, ..., X_p$ change? Or we have a theory about the relationship between $Y$ and $X$?
+
+In that case, we might want to use __statistical inference__ to tell us whether a particular form of the model is correct.
+
+__Example__: Consider a linear regression model:
+
+$$H_0: \beta_i = 0$$
+
+$$H_A: \beta_i \ne 0$$
+
+---
+
+## Parametric methods
+
+There are two major approaches to estimation: __parametric__ methods and __non-parametric__ methods.
+
+Parametrics involve a model-based approach:
+
+1. First, make an assumption about the functional form of $f(X)$. One simple example:
+
+$$f(X) = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + ...  + \beta_p X_p$$
+
+2. After a model has been selected, we need a procedure that uses training data to _fit_ or _train_ the model. In parametric cases, we want to use the training data to estimate the _parameters_ of the model.
+
+---
+
+## Parametric methods
+
+Parametric models: 
+
+- Reduce the problem of estimating $f(X)$ down to a much smaller set of possible models
+- Make assumptions about the distribution of the input variables, output variables, and/or error
+- The reduced complexity means that parametric models will (almost) always be an approximation
+
+Most of the "classical" statistical models are parametric.
+
+---
+
+
+## Example: Advertising data
+
+Suppose we want to start with a simple model for predicting sales based on TV ads. A linear model might be a good, _parametric_ start.
+
+```{r, echo=FALSE}
+Advertising %>% ggplot(aes(x=TV, y=sales)) + geom_point() + geom_smooth(method='lm') + labs(title='Linear model: y ~ x')
+```
+
+---
+
+
+## Example: Advertising data
+
+A _quadratic_ model is another option:
+
+```{r, echo=FALSE}
+Advertising %>% ggplot(aes(x=TV, y=sales)) + geom_point() + geom_smooth(method='lm', formula = y ~ x + I(x^2)) + labs(title='Quadratic model: y ~ x + x^2')
+```
+
+---
+
+## Non-parametric methods
+
+Non-parametric methods don't make explicit assumptions about (1) the functional form of $f(X)$ or (2) the distributional form of the variables.
+
+- The goal of non-parametric methods is to get as close as possible to approximating the output variable without being "too rough or wiggly".
+
+---
+
+
+## Example: Advertising data 
+
+A common non-parametric regression model is a _smoothing spline_:
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+Advertising %>% ggplot(aes(x=TV, y=sales)) + geom_point() + geom_smooth(span=0.25) + labs(title='LOESS smoother (span = 0.25)')
+```
+
+---
+
+## Non-parametric methods
+
+Most non-parametric methods will have _tuning parameters_ that we can use to tweak the "wiggliness" of the model:
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+Advertising %>% ggplot(aes(x=TV, y=sales)) + geom_point() + geom_smooth(span=0.5) + labs(title='LOESS smoother (span = 0.5)')
+```
+
+---
+
+
+Of the four models we've considered,
+
+1. Which is most "accurate"?
+2. Which is most "interpretable"?
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(gridExtra)
+p1 <- Advertising %>% ggplot(aes(x=TV, y=sales)) + geom_point() + geom_smooth(method='lm') + labs(title='Linear model: y ~ x')
+p2 <- Advertising %>% ggplot(aes(x=TV, y=sales)) + geom_point() + geom_smooth(method='lm', formula = y ~ x + I(x^2)) + labs(title='Quadratic model: y ~ x + x^2')
+p3 <- Advertising %>% ggplot(aes(x=TV, y=sales)) + geom_point() + geom_smooth(span=0.25) + labs(title='LOESS smoother (span = 0.25)')
+p4 <- Advertising %>% ggplot(aes(x=TV, y=sales)) + geom_point() + geom_smooth(span=0.5) + labs(title='LOESS smoother (span = 0.5)')
+
+grid.arrange(p1, p2, p3, p4, nrow=2)
+```

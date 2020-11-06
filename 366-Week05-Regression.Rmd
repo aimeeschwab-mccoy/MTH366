@@ -1,0 +1,917 @@
+---
+title: 'Week 5: Regression'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "MTH 366: Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=FALSE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+## Regression = machine learning
+
+Even multiple regression is a machine learning algorithm!
+
+1. In previous courses, we focused on inference from regression, and learning about relationships from our model.
+2. In this class, we'll emphasize making __accurate predictions__ using regression models.
+
+---
+
+## Linear regression
+
+The standard linear model is 
+
+$$Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + ... + \beta_p X_p + \epsilon$$
+
+In statistics, we typically fit this model using _least squares_, and emphasize inference.
+
+In machine learning, we can use multiple algorithms to fit this model:
+
+- Least squares
+- Regularization (LASSO and ridge)
+
+---
+
+## Least squares regression
+
+Let $\hat{Y}_i$ represent the predicted value of $Y$ for a set of inputs $(X_{1i}, X_{2i}, ..., X_{pi})$. __Least squares regression__ estimates the parameters $\beta_0, ..., \beta_p$ to satisfy two criteria:
+
+1) Set the sum of the error terms to zero,
+
+$$\sum_{i=1}^n (\hat{Y}_i - Y_i) = 0$$
+
+2) Minimize the sum of the squared errors, $SSE$, 
+
+$$SSE = \sum_{i=1}^n (\hat{Y}_i - Y_i)^2$$
+
+---
+
+## Least squares regression
+
+Why would we want to use a different method?
+
+1. If the true relationship between the response and the predictors is approximately linear, the least squares estimates will have low bias. If $n>>p$ (much larger), then the least squares estimates tend to have low variance.
+
+2. If $n > p$ (not much larger), there can be a lot of variability in the least squares fit, resulting in overfitting and poor predictions. 
+
+3. Worse, if $n<p$, there is not a unique least squares solution!
+
+---
+
+## Least squares regression
+
+If we _constrain_, or "shrink", the estimated coefficients $\beta_0, \beta_1, ..., \beta_p$, then we can often reduce the variance at the cost of a small increase in bias.
+
+- This reduction in variance can come with substantial improvements in accuracy!
+
+---
+
+## Least squares regression
+
+Another reason to move away from least squares regression is _model selection_.
+
+1. All input variables are included in the least squares regression model, and used to predict, even if they are not related to $Y$.
+
+2. Including irrelevant variables adds to interpretative complexity, and can result in predictions that are inaccurate or biased.
+
+---
+
+## Alternative to least squares
+
+1. __Subset selection__: identifying a subset of the $p$ predictors that we  believe are related to the response, then using least squares on the reduced set of variables (MTH 362: Statistical Modeling)
+
+2. __Shrinkage__: fitting a model involving all $p$ predictors, allowing estimated coefficients to shrink to zero relative to the least squares estimates (also called _regularization_)
+
+3. __Dimension reduction__: projecting the $p$ predictors into an $M$-dimensional subspace, where $M <p$, then using the $M$ projections as new predictors
+
+---
+
+## Evaluation criteria
+
+There are three criteria we'll use to evaluate a regression model:
+
+1. $MSE$: mean squared (prediction) error
+2. $R^2_{adj}$: adjusted R-squared
+3. $MAE$: mean absolute error
+
+---
+
+## Mean square error
+
+$$MSE =\frac{1}{n}\sum_{i=1}^{n}(\hat{Y}_{i}-Y_{i})^{2}$$
+
+- Smaller mean square error is better.
+- No absolute scale.
+- Mean square error is often used to evaluate the best set of training parameters _and_ the fit of the model to the testing data.
+- Sometimes $RMSE$, or __root mean square error__ is reported instead.
+
+$$RMSE =\sqrt{\frac{1}{n}\sum_{i=1}^{n}(\hat{Y}_{i}-Y_{i})^{2}}$$
+
+---
+
+## Adjusted $R^2$
+
+In intro stats, you learned about a measure called the coefficient of determination, $R^2$:
+
+$$R^2 = Corr(Y_i , \hat{Y}_i)^2 = 1-\frac{RSS}{TSS}$$
+
+where the _total sums of squares_, $TSS$ is:
+
+$$TSS = \sum_{i=1}^n (Y_i - \bar{Y})^2$$
+
+The adjusted $R^2$, denoted $R^2_{adj}$, penalizes $R^2$ based on the number of variables in the model:
+
+$$R^2_{adj} = 1-\frac{(1-R^2)(n-1)}{n-p-1}$$
+
+---
+
+## Example: Air quality
+
+Source: https://archive.ics.uci.edu/ml/datasets/Air+Quality
+
+The `AirQualityUCI` data set contains 9358 instances of hourly averaged responses from an array of 5 metal oxide chemical sensors embedded in an Air Quality Chemical Multisensor Device. The device was located on the field in a significantly polluted area, at road level, within an Italian city. Data were recorded from March 2004 to February 2005 (one year) representing the longest freely available recordings of on field deployed air quality chemical sensor devices responses. Ground Truth hourly averaged concentrations for CO, Non Metanic Hydrocarbons, Benzene, Total Nitrogen Oxides (NOx) and Nitrogen Dioxide (NO2) and were provided by a co-located reference certified analyzer. 
+
+```{r, echo=FALSE}
+#AirQualityUCI <- read.csv("~/OneDrive - Creighton University/MTH 366 - Machine Learning/Class Notes/AirQualityUCI.csv")
+AirQualityUCI <- read.csv("C:/Users/ads67836/OneDrive - Creighton University/MTH 366 - Machine Learning/Class Notes/AirQualityUCI.csv")
+colnames(AirQualityUCI) <- c('Date', colnames(AirQualityUCI[-1]))
+```
+
+---
+
+Variable|Description
+-----|------
+`Date`| Date: (DD/MM/YYYY)
+`Time`|Time:  (HH.MM.SS)
+`HourlyCO`|True hourly averaged concentration CO in mg/m^3
+`PT08_S1`| (tin oxide) hourly averaged sensor response
+`NMHC`|True hourly averaged overall Non Metanic HydroCarbons concentration in microg/m^3
+`Benzene`|True hourly averaged Benzene concentration in microg/m^3
+`PT08_S2`| (titania) hourly averaged sensor response
+`NOx`|True hourly averaged NOx concentration in ppb
+`PT08_S3`|(tungsten oxide) hourly averaged sensor response 
+`NO2`| True hourly averaged NO2 concentration in microg/m^3
+`PT08_S4`| (tungsten oxide) hourly averaged sensor response
+`PT08_S5`| (indium oxide) hourly averaged sensor response
+`Temp`| Temperature in °C
+`RelHumidity`| Relative Humidity (%)
+`AbsHumidity` AH Absolute Humidity
+
+---
+
+## Cleaning the `AirQuality`
+
+```{r}
+summary(AirQualityUCI)
+```
+
+---
+
+## Cleaning the `AirQuality`
+
+We have NAs, so remove them using `complete.cases()`. (We'll talk more about a better way to deal with NAs soon!)
+
+```{r}
+AirQualityComplete <- AirQualityUCI[complete.cases(AirQualityUCI[,1:15]), 1:15]
+nrow(AirQualityComplete)
+```
+
+--
+
+- Why `1:15`?
+
+---
+
+## Cleaning the `AirQuality`
+
+One more thing...
+
+```{r}
+head(AirQualityComplete$Date)
+
+AirQualityComplete$Date <- lubridate::mdy(AirQualityComplete$Date)
+
+head(AirQualityComplete$Date)
+```
+
+---
+
+## Shrinkage estimates
+
+__Shrinkage__ estimates sacrifice some of the accuracy in estimating the regression coefficients $\beta_i$ (increased bias) to gain lower variance.
+
+- __Bias-variance tradeoff__: lower bias tends to come with increased variance, and vice versa
+
+--
+
+Model evaluaton criteria: $MSE$, $MAE$, and $(R)MSE$
+
+---
+
+
+## Example: `AirQuality`
+
+We'd like to predict air quality (hourly CO) based on sensor data from a large city in Italy (speculation: Milan).
+
+- There were a lot of NAs, possibly systematic. We removed them.
+
+- Some weird extra columns, we took those out too.
+
+---
+
+## Cleaning the `AirQuality`
+
+```{r}
+library(caret)
+
+# Create a testing and training data set
+trainIndex <- createDataPartition(AirQualityComplete$HourlyCO, 
+                                          p=0.70, 
+                                          list=FALSE, 
+                                          times=1)
+Train <- AirQualityComplete[trainIndex, ]
+Test  <- AirQualityComplete[-trainIndex, ]
+```
+
+---
+
+
+```{r, message=TRUE}
+model_lm = train(
+  form = HourlyCO ~ .,
+  data = Train,
+  method = "glm")
+```
+
+- `method = "glm"` indicates the generalized linear model
+
+---
+
+__"Rank-deficiency again??__
+
+- Remember, "rank-deficient" fits occur when the matrix of input variables is not of "full rank" (i.e. there are not enough observations to fit the model).
+- If input variables are linear combinations of others, this can be a problem.
+
+```{r, error=TRUE}
+library(Matrix)
+rankMatrix(Train)
+```
+
+--
+
+- ... or... if you have categorical inputs, this can be a problem.
+
+---
+
+Troubleshooting: what if we remove `Date` and `Time`?
+
+```{r, error=TRUE}
+model_lm = train(
+  form = HourlyCO ~ . - Date - Time,
+  data = Train,
+  method = "glm")
+
+model_lm
+```
+
+---
+
+```{r}
+Test <- Test %>% mutate(pred_lm = predict(model_lm, Test))
+
+# R-squared
+R2(Test$pred_lm, Test$HourlyCO)
+
+# Root MSE
+RMSE(Test$pred_lm, Test$HourlyCO)
+
+# Mean absolute error - how do you think this is calculated?
+MAE(Test$pred_lm, Test$HourlyCO)
+```
+
+---
+
+## Model selection
+
+Model evaluation criteria like RMSE, MSE, and MAE are _relative measures_: they don't mean much on their own! However, they are useful for deciding between _multiple_ multiple regression models. 
+
+--
+
+Other (_more interesting_) regression models include:
+
+1. Ridge regression
+2. Lasso regression
+3. Elastic net regression
+4. Principal components regression
+
+---
+
+## Regularization
+
+Regularization methods _shrink_ the regression coefficients $\beta_0, \beta_1, ..., \beta_p$ toward zero.
+
+- Regularization estimates $\hat{\beta}_0, \hat{\beta}_1, ..., \hat{\beta}_p$ are biased, so should not be used when you're trying to do inference on $\beta_i$
+- However, __shrinkage methods__ _can_ result in more accurate predictions.
+
+Two major techniques:
+
+1. Lasso regression
+2. Ridge regression
+
+---
+
+## Ridge regression
+
+__Ridge regression__: estimates regression coefficients with a restriction on the sum of the _squared_ coefficients
+
+The estimated ridge coefficients, $\hat{\beta}^R_i$ minimize:
+
+$$RSS + \lambda \sum_{j=1}^p \beta^2_j$$
+
+where $\lambda \ge 0$ is a _tuning parameter.
+
+---
+
+## Ridge regression
+
+Ridge regression procedure:
+
+1. Iterate through different values of $\lambda$ using the training data, and select the one that optimizes the evaluation metric on the training data.
+2. Apply the ridge regression model with the "best" $\lambda$ to the testing data.
+
+--
+
+Some questions to consider:
+
+1. Why do you think the intercept coefficient, $\beta_0$ not included in this summation?
+2. What will happen as $\lambda \rightarrow 0$?
+3. What will happen as $\lambda \rightarrow \infty$?
+
+---
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_ridge_lambda.png")
+```
+
+
+---
+
+## Ridge regression
+
+Advantages of ridge regression:
+
+1. Bias-variance tradeoff: we sacrifice some bias in our parameter estimates for reducing the variance of our predictions. Ridge regression works best in situations where the least squares estimates have high variance.
+2. Ridge regression also have computational advantages over variable selection algorithms.
+
+--
+
+Disadvantage of ridge regression:
+
+1. All $p$ input variables will stay in the model, that is, no $\hat{\beta}_j^R =0$. This might not be a problem for prediction accuracy, but it is a problem for model interpretability.
+
+---
+
+## Lasso regression
+
+__Lasso regression__: estimates regression coefficients with a restriction on the sum of the _absolute value_ of the coefficients
+
+Acronym: least absolute shrinkage and selection operator
+
+--
+
+```{r, out.width = "200px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_lasso.jpg")
+```
+
+---
+
+## Lasso regression
+
+Lasso regression minimizes the following: 
+
+$$RSS + \lambda \sum_{j=1}^p \vert \beta_j\vert$$
+
+- Lasso regression also shrinks the coefficient estimates to zero
+- Unlike ridge regression, $\hat{\beta}^L_j$ _can_ be zero
+
+We say that lasso regression produces _sparse_ models: models that contain only a subset of the possible variables.
+
+---
+
+## Lasso regression
+
+Lasso regression procedure:
+
+1. Iterate through different values of $\lambda$ using the training data, and select the one that optimizes the evaluation metric on the training data.
+2. Apply the lasso regression model with the "best" $\lambda$ to the testing data.
+
+---
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_ridge_lasso.png")
+```
+
+---
+
+## Pre-processing
+
+Regularization methods are sensitive to the scale of the data: the _magnitude_ of the estimated coefficients depends on the units of the input variable.
+
+Solution: __pre-process__ the data by transforming the input variables to be on the same scale
+
+- One option is to transform the input variables using z-scores
+
+$$z_{ij} = \frac{x_{ij} - \bar{x}_{j}}{SD_{j}}$$
+
+where $z_{ij}$ is the _standardized_ $i^{th}$ observation of input variable $j$, $x_{ij}$ is the original value, $\bar{x}_j$ is the mean of input variable $j$, and $SD_j$ is the standard deviation of input variable $j$.
+
+
+---
+
+
+Before we create the testing/training data, let's try to "process" the data.
+
+```{r}
+library(caret)
+head(AirQualityUCI)
+
+# What does this create?
+preProcess_AQ <- preProcess(AirQualityUCI, 
+                                method=c('center', 'scale'))
+```
+
+---
+
+```{r}
+head(preProcess_AQ)
+```
+
+`caret::preProcess` defines _how_ to modify the data, but doesn't actually perform the modifications.
+
+---
+
+Another option is to scale the observations to the interval between zero and one.
+
+```{r, eval=FALSE}
+# Example - this code isn't running
+preProcess_AQ <- preProcess(AirQualityUCI,
+                            rangeBounds = c(0, 1))
+```
+
+---
+
+## `caret::preProcess()`
+
+Now we're ready to apply the pre-processing step.
+
+```{r}
+trainIndex <- createDataPartition(AirQualityComplete$HourlyCO, 
+                                          p=0.70, 
+                                          list=FALSE, 
+                                          times=1)
+
+Train <- AirQualityComplete[trainIndex, ]
+Test  <- AirQualityComplete[-trainIndex, ]
+
+TrainTransformed <- predict(preProcess_AQ, Train)
+TestTransformed <- predict(preProcess_AQ, Test)
+```
+
+---
+
+```{r}
+head(TrainTransformed, 3)
+```
+
+Does it make sense to transform `Date` and `Time`? Are we in trouble? Did we do a bad?
+
+---
+
+## Pre-processing, revisited
+
+```{r}
+head(Train, 3)
+```
+
+_If_ for some reason we didn't want to transform all of the variables:
+
+```{r, eval=FALSE}
+preProcess_AQ <- preProcess(AirQualityUCI[,3:15], 
+                                method=c('center', 'scale'))
+```
+
+---
+
+## Pre-processing workflow
+
+1. Define _how_ you want to pre-process the data using `caret::preProcess`
+2. Create a testing/training validation set
+3. Apply the pre-processing step to both the testing and training data
+
+---
+
+## Regularization: `glmnet`
+
+Ridge regression and lasso regression are special cases of the __elastic net__. The option that implements ridge/lasso/elastic net regression in `caret` is `"method = glmnet"`.
+
+Two tuning parameters: `alpha` and `lambda`
+
+- `alpha=1` is the lasso penalty 
+- `alpha=0` is the ridge penalty
+
+What happens if we don't specify?
+
+---
+
+
+```{r}
+model_glmnet = train(
+  form = HourlyCO ~ .,
+  data = TrainTransformed,
+  method = "glmnet")
+
+model_glmnet
+```
+
+---
+
+## Elastic net regression
+
+The general elastic net penalty is:
+
+$$RSS+\lambda\left\{ \frac{1-\alpha}{2}\sum_{j=1}^{n}\beta_{j}^{2}+\alpha\sum_{j=1}^{n}\left|\beta_{j}\right|\right\}$$
+
+- Earlier we claimed that `alpha=0` implements the ridge penalty. Does it? 
+
+---
+
+## Regularization: `glmnet`
+
+Set up a grid of tuning parameters:
+
+```{r}
+alpha <- seq(from=0, to=1, length=11)
+alpha
+
+lambda <- seq(from=0, to=3, length=11)
+lambda
+
+grid <- expand.grid(alpha, lambda)
+colnames(grid) <- c('alpha', 'lambda')
+```
+
+---
+
+## Regularization: `glmnet()`
+
+Call live code in the text area: `r 2+2`
+
+```{r}
+model_glmnet = train(
+  form = HourlyCO ~ .,
+  data = TrainTransformed,
+  method = "glmnet",
+  tuneGrid = grid)
+
+model_glmnet
+```
+
+---
+
+## Regularization: `glmnet()`
+
+```{r}
+plot(model_glmnet)
+```
+
+---
+
+## Missing values?
+
+Answer from Max Kuhn (`caret` developer):
+
+> _"It looks like it happens when you have one hidden unit and almost no regularization. What is happening is that the model is predicting a value very close to a constant (so that the RMSE is a little worse than the basic st deviation of the outcome)."_
+
+- RMSE is the square "root" of mean squared error. 
+
+Should we choose models with small or large RMSE?
+
+---
+
+```{r}
+Performance_Measures <- model_glmnet$results
+Performance_Measures %>% ggplot(aes(x=alpha, y=lambda)) + 
+  geom_raster(aes(fill=RMSE))
+```
+
+---
+
+## Expanding the grid
+
+```{r}
+alpha <- seq(from=0, to=1, length=20)
+lambda <- seq(from=0, to=1, length=20)
+grid <- expand.grid(alpha, lambda)
+colnames(grid) <- c('alpha', 'lambda')
+
+start <- Sys.time()
+
+model_glmnet = train(
+  form = HourlyCO ~ .,
+  data = TrainTransformed,
+  method = "glmnet",
+  tuneGrid = grid)
+
+Sys.time() - start
+```
+
+---
+
+```{r}
+Performance_Measures <- model_glmnet$results
+Performance_Measures %>% ggplot(aes(x=alpha, y=lambda)) + 
+  geom_raster(aes(fill=RMSE)) + scale_fill_distiller(palette='Spectral')
+```
+
+---
+
+## Refining the grid
+
+```{r}
+alpha <- seq(from=0.5, to=1, length=20) #<<
+lambda <- seq(from=0, to=0.1, length=20) #<<
+grid <- expand.grid(alpha, lambda)
+colnames(grid) <- c('alpha', 'lambda')
+
+start <- Sys.time()
+
+model_glmnet = train(
+  form = HourlyCO ~ .,
+  data = TrainTransformed,
+  method = "glmnet",
+  tuneGrid = grid)
+
+Sys.time() - start
+```
+
+---
+
+```{r}
+Performance_Measures <- model_glmnet$results
+Performance_Measures %>% ggplot(aes(x=alpha, y=lambda)) + 
+  geom_raster(aes(fill=RMSE)) + scale_fill_distiller(palette='Spectral')
+```
+
+---
+
+
+How do we know we've reached the "best" values of our tuning parameters?
+
+---
+
+
+How do we know we've reached the "best" values of our tuning parameters?
+
+![](https://media1.tenor.com/images/736ff579acc959173ea403c367d91a17/tenor.gif?itemid=8225002)
+
+---
+
+## One more go...
+
+```{r, cache=TRUE}
+alpha <- seq(from=0.5, to=1, length=100) #<<
+lambda <- seq(from=0, to=0.05, length=100) #<<
+grid <- expand.grid(alpha, lambda)
+colnames(grid) <- c('alpha', 'lambda')
+
+start <- Sys.time()
+
+model_glmnet = train(
+  form = HourlyCO ~ .,
+  data = TrainTransformed,
+  method = "glmnet",
+  tuneGrid = grid)
+
+Sys.time() - start
+```
+
+---
+
+```{r}
+Performance_Measures <- model_glmnet$results
+Performance_Measures %>% ggplot(aes(x=alpha, y=lambda)) + 
+  geom_raster(aes(fill=RMSE)) + scale_fill_distiller(palette='Spectral')
+```
+
+---
+
+In regression, correlated input variables can be a problem. How correlated were the inputs?
+
+```{r}
+library(corrplot)
+correlation <- cor(AirQualityComplete[,3:15])
+corrplot(correlation)
+```
+
+---
+
+## Principal components regression
+
+__Principal components analysis__: a method of _dimension reduction_, PCA is used to derive a low-dimensional set of features from a high-dimensional set of features
+
+---
+
+## Principal components regression
+
+__Principal components analysis__: a method of _dimension reduction_, PCA is used to derive a low-dimensional set of features from a high-dimensional set of features
+
+- In PCA, we look for linear combinations of the input variables that _explain the most variance_ in the data
+- Instead of retaining all $p$ input variables, we choose to keep a smaller set of $k$ linear combinations
+- We'll talk more about PCA when we get to _unsupervised learning_
+
+---
+
+## Principal components regression
+
+When does it make sense to reduce the dimension of the data set?
+
+1. $n <p$: if we have fewer observations than predictors, the regression coefficients cannot be solved. Reducing the dimension to $k < n$ principal components is an easy work-around for this problem.
+2. Input variables are highly correlated. Principal components are calculated in such a way that they are _uncorrelated_. If your input variables have strong correlations, you might transform them first.
+
+---
+
+## Principal components regression
+
+In `caret`, principal components is a pre-processing option.
+
+1. Applying PCA to pre-process should only include the _input variables_. Why?
+2. Variables that have no variance should be dropped.
+
+```{r}
+preProcess_PCA <- preProcess(AirQualityComplete, 
+                                method=c('pca'))
+preProcess_PCA
+```
+
+---
+
+## Pre-processing with PCA
+
+```{r}
+preProcess_PCA <- preProcess(AirQualityComplete[,-3], 
+                                method=c('pca'))
+preProcess_PCA
+```
+
+---
+
+Which two variables were ignored?
+
+```{r}
+names(preProcess_PCA)
+preProcess_PCA$method
+```
+
+---
+
+## Principal components regression
+
+```{r}
+trainIndexPCA <- createDataPartition(AirQualityComplete$HourlyCO, 
+                                          p=0.70, 
+                                          list=FALSE, 
+                                          times=1)
+
+TrainPCA <- AirQualityComplete[trainIndex, ]
+TestPCA  <- AirQualityComplete[-trainIndex, ]
+
+TrainTransformedPCA <- predict(preProcess_PCA, Train)
+TestTransformedPCA <- predict(preProcess_PCA, Test)
+```
+
+---
+
+## Principal components regression
+
+Once we have the principal components, we can apply regression to the newly _transformed_ input variables. (We'll use a smaller grid in the interest of computational time.)
+
+```{r}
+alpha <- seq(from=0, to=1, length=5)
+lambda <- seq(from=0, to=1, length=5)
+
+grid <- expand.grid(alpha, lambda)
+colnames(grid) <- c('alpha', 'lambda')
+
+# Pre-processing: centering and scaling only
+model_CS = train(form = HourlyCO ~ ., data = TrainTransformed,
+  method = "glmnet", tuneGrid = grid)
+
+# Pre-processing: principal components
+model_PCA = train(form = HourlyCO ~ ., data = TrainTransformedPCA,
+  method = "glmnet", tuneGrid = grid)
+
+```
+
+---
+
+## Did PCA help?
+
+```{r}
+plot(model_CS)
+```
+
+---
+
+## Did PCA help?
+
+```{r}
+plot(model_PCA)
+```
+
+---
+
+## Not so fast...
+
+When we processed the data using "centering" and "scaling", we applied the transformation to _all_ variables, including `HourlyCO`. When we applied PCA, we didn't transform `HourlyCO`. 
+
+- For a fair comparison, we should transform the output too!
+- Make sure to transform `HourlyCO` in both the testing and training data.
+
+```{r}
+mean <- mean(TrainTransformedPCA$HourlyCO)
+sd <- sd(TrainTransformedPCA$HourlyCO)
+
+TrainTransformedPCA$HourlyCO2 <- (TrainTransformedPCA$HourlyCO-mean)/sd
+
+model_PCA = train(form = HourlyCO ~ ., data = TrainTransformedPCA,
+  method = "glmnet", tuneGrid = grid)
+```
+
+---
+
+```{r}
+model_PCA
+```
+
+---
+
+## Now, did PCA help?
+
+```{r}
+plot(model_PCA)
+```
+
+
+

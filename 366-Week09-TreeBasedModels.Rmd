@@ -1,0 +1,666 @@
+---
+title: 'Week 9: Tree-Based Models'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "MTH 366: Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=FALSE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+## Tree-based models
+
+Tree-based models are conceptually simple, non-parametric techniques for making classifications.
+
+__Pros__:
+
+1. Can be used for classification problems _and_ regression problems
+2. Easy to interpret (as long as they're small)
+
+--
+
+Tree-based models are popular, but not perfect.
+
+__Cons__:
+
+1. Can require _a lot_ of data
+2. Large trees are difficult to interpret
+3. Often underperform compared to other techniques
+
+---
+
+## Example: The Avila bible
+
+The Avila data set has been extracted from 800 images of the the "Avila Bible", a giant Latin copy of the whole Bible produced during the XII century between Italy and Spain. The palaeographic analysis of the  manuscript has demonstrated the presence of 12 copyists. 
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_avila.png")
+```
+
+---
+
+C. DeStefano, M. Maniaci, F. Fontanella, A. Scotto diFreca, Reliable writer identification in medieval manuscripts through page layout features: The "Avila" Bible case, _Engineering Applications of Artificial Intelligence_, Volume 72, 2018, pp. 99-110.
+
+- The pages written by each copyist are not equally numerous. Each pattern contains 10 features and corresponds to a group of 4 consecutive rows.
+
+- The data has already been normalized, using z-scores, and divided in two data sets: a training set containing 10430 samples, and a test set containing the 10437 samples.
+
+- Link: http://webuser.unicas.it/fontanella/papers/iciap11.pdf
+
+---
+
+In the data set, 
+
+Column|Variable
+----|------------
+1  | Distance between columns (page layout)
+2  | Upper margin (page layout)
+3  | Lower margin (page layout)
+4  | Exploitation (measure of how much of each column is "filled" with ink)
+5  | Number of rows in each text column
+6  | Modular ratio (rows)
+7  | Interlinear spacing (rows)
+8  | Weight (measure of how much of each row is "filled" with ink)
+9  | Peak number (Estimate of the number of characters in a row)
+10 | Modular ratio (columns)
+11 | Class
+
+---
+
+## Tree-based methods
+
+We'll consider two tasks with this data:
+
+1. Use page, row, and spacing features to predict the number of characters in each row
+
+2. Predict which of the 12 copyists wrote the section of text being considered
+
+---
+
+The authors provided the data already split into a testing and training set, so we'll use their splits for consistency.
+
+```{r, echo=-1}
+#avila.tr <- read.csv("~/OneDrive - Creighton University/MTH 366 - Machine Learning/Class Notes/avila-tr.txt", header=FALSE)
+avila.tr <- read.csv("C:/Users/ads67836/OneDrive - Creighton University/MTH 366 - Machine Learning/Class Notes/avila-tr.txt", header=FALSE)
+
+colnames(avila.tr) <- c('Col_Dist', 'U_Margin', 'L_Margin', 
+                        'Exploitation', 'NRows', 'Mod_Row', 
+                        'Interlinear', 'Weight', 'Peak', 'Mod_Col',
+                        'Class')
+
+head(avila.tr)
+```
+
+---
+
+## Decision trees
+
+__Decision trees__: decision trees make predictions in an "if-then" manner by stratifying the data along the input variables
+
+- Follow the tree to make the prediction.
+
+--
+
+__Basic algorithm__: 
+
+1. Divide the space of input features $X_1, X_2, ..., X_p$ into $J$ distinct and non-overlapping regions: $R_1, R_2, ..., R_J$.
+
+2. For every observation in $R_j$, make the same prediction, which is usually the mean of the response variables for the training data in $R_j$ (regression) or the most frequent class in $R_j$ (classification).
+
+---
+
+## Regression trees
+
+So how to construct $R_1, R_2, ..., R_J$?
+
+- Find high-dimensional rectangles, _boxes_, that minimize the $RSS$:
+
+$$\sum_{j=1}^J \sum_{i\in R_j}(y_i -\hat{y}_{R_j})^2$$
+
+where $\hat{y}_{R_j}$ is the predicted response for the training observations in the $j^th$ box.
+
+--
+
+- Okay, but how do we find the boxes?
+
+---
+
+## Greedy approach
+
+__Greedy algorithm__: greedy algorithms take the "quick and dirty" apporach to solving a problem - at each stage, the _locally optimal_ choice is made with the goal of hopefully reaching a _global solution_
+
+--
+
+How does this work?
+
+__Example__: Consider the "traveling salesmen" problem. A greedy solution would be: "at each step, visit the nearest unvisited city"
+
+- No guarantee that the _globallly optimal_ approach will be found
+- A _local_ solution is found in a reasonable number of steps
+
+---
+
+## Regression trees
+
+__Recursive binary splitting__: top-down, greedy approach to building decision trees
+
+1. Start at the "top" of the tree, where all observations are in the same box
+2. Successively split the box in two based on a single predictor
+
+---
+
+## Regression trees
+
+Mathematically, 
+
+1. Choose an input feature $X_j$ and a cutpoint $s$ such that the predictor space is split into two regions:
+
+
+$$\begin{array}{cc}
+R_{1}(j,s)=\{X\vert X_{j}<s\} & R_{2}(j,s)=\{X\vert X_{j}\ge s\}\end{array}$$
+
+2. For all $p$ input features, find the cutpoint $s$ such that the resulting tree has the lowest $RSS$. That is, minimize:
+
+$$\sum_{i:x_{i}\in R_{1}(j,s)}(y_{i}-\hat{y}_{R_{1}})^{2}+\sum_{i:x_{i}\in R_{2}(j,s)}(y_{i}-\hat{y}_{R_{1}})^{2}$$
+
+3. Next, repeat the process, looking for the best feature and cutpoint to split the data and minimize $RSS$ within $R_1$ and $R_2$.
+
+4. Stop when $RSS$ cannot be improved any further _or_ is within some acceptable boundary, or when the maximum number of allowable regions has been reached.
+
+---
+
+## Dealing with overfitting
+
+Decision trees (regression trees and classification trees are a subset) are prone to overfitting. Solution?
+
+```{r, out.width = "500px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_pruning.jpeg")
+```
+
+---
+
+## Pruning
+
+Smaller trees with fewer splits (smaller $J$) might lead to lower variance and better interpretation, at the cost of _a little_ bias.
+
+Instead of growing a small tree and stopping too soon, build a large tree and cut it back (__pruning__) to obtain a _subtree_.
+
+- Goal: select a subtree that leads to the lowest test error rate
+- Can do this using cross-valildation or the validation set approach (computationally intensive)
+
+---
+
+## Cost complexity pruning
+
+![](https://media0.giphy.com/media/xJLNafkD7RGsE/source.gif)
+
+--
+
+Basically this.
+
+---
+
+## Cost complexity pruning
+
+Consider some non-negative tuning parameter, $\alpha$. For each alpha, there exists a subtree $T$ in the large tree $T_0$ such that:
+
+$$\sum_{m=1}^{|T|}\sum_{x_{i}\in R_{m}}(y_{i}-\hat{y}_{R_{m}})^{2}+\alpha|T|$$
+
+is minimized.
+
+- $|T|$ denotes the number of terminal nodes of $T$.
+- When $\alpha=0$, there is no pruning (🌴)
+- As $\alpha$ increases, the pruning becomes more extreme (🌴 -> 🌿 -> 🌱)
+
+---
+
+## Growing a regression tree
+
+1. Use recursive binary splitting to grow a large tree on the training data, stopping when each terminal node has fewer than some minimum number of observations. 
+2. Apply cost complexity pruning to the large tree $T$ to obtain a sequence of "best" trees as a function of $\alpha$.
+3. Use $k$-fold cross-validation to optimize $\alpha$.
+
+---
+
+__Example__: We can use a regression tree to predict the number of characters.
+
+```{r}
+library(caret)
+model <- train(Peak ~ . - Class, 
+               data = avila.tr, 
+               method = 'rpart')
+
+plot(model)
+
+model$finalModel
+```
+
+---
+
+```{r}
+plot(model$finalModel)
+text(model$finalModel)
+```
+
+---
+
+```{r}
+library(rattle)
+fancyRpartPlot(model$finalModel)
+```
+
+---
+
+Compare to model with _only a little_ pruning (force "complexity parameter" $\alpha=0.01$).
+
+```{r}
+grid <- data.frame(cp = 0.01)
+
+model <- train(Peak ~ . - Class, 
+               data = avila.tr, 
+               method = 'rpart', 
+               tuneGrid = grid)
+
+model$finalModel
+```
+
+---
+
+```{r}
+fancyRpartPlot(model$finalModel)
+```
+
+---
+
+## Unpruned tree
+
+__Warning__: Do not try this at home.
+
+```{r, out.width = "900px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_unpruned.png")
+```
+
+---
+
+__Example__: We can _also_ use a regression tree to predict the number of characters.
+
+```{r}
+model <- train(Class ~ . , 
+               data = avila.tr, 
+               method = 'rpart')
+
+plot(model)
+
+model$finalModel
+```
+
+---
+
+```{r}
+fancyRpartPlot(model$finalModel)
+```
+
+---
+
+```{r}
+grid <- data.frame(cp = seq(from=0.01, to=0.04, length=21))
+
+model <- train(Class ~ . , 
+               data = avila.tr, 
+               method = 'rpart', 
+               tuneGrid = grid)
+
+model$finalModel
+
+plot(model)
+```
+
+---
+
+```{r}
+fancyRpartPlot(model$finalModel)
+```
+
+---
+
+## Regression v. classification tree
+
+__Classification tree__: classification trees are used to predict _qualitative responses_ rather than quantitative ones
+
+- The basic mathematics behind building the classification tree is _mostly_ the same.
+
+- __Prediction__: the most commonly occuring class of training data in the terminal node of the tree
+
+- Can also take the _class proportions_ as a prediction (or measure of certainty)
+
+---
+
+## Classfication error rate
+
+For categorical variables, _residual sum of squares_ doesn't make much sense.
+
+__Classification error rate__: the fraction of training observations in a particular region that do not belong to the most common class
+
+$$E = 1 -max_k \left( \hat{p}_{mk} \right)$$
+
+where $\hat{p}_{mk}$ represents the proportion of training observations in the $m$-th training region that are from the $k$-th class.
+
+--
+
+Classification error rate makes a lot of sense, but is not sufficiently sensitive for growing a classification tree.
+
+1. Gini index
+2. Entropy
+
+---
+
+## Gini index
+
+$$G = \sum_{k=1}^K \hat{p}_{mk} (1-\hat{p}_{mk})$$
+
+The Gini index is a measure of total variance across all $K$ classes.
+
+- If all $\hat{p}_{mk}$ are close to 0 or 1, $G$ will be small
+- If all $\hat{p}_{mk}$ are near 0.5, $G$ will be large
+
+--
+
+The Gini index is a measure of _node purity_: small values indicate that a node contains predominantly observations from a single class - which is what we want!
+
+---
+
+## Entropy
+
+$$D = -\sum_{k=1}^K \hat{p}_{mk} log(\hat{p}_{mk})$$
+
+- Like the Gini index, entropy takes on a value near zero if the $m^{th}$ node is "pure"
+- Depending on which function or software you're using, the evaluation metrics may change
+
+---
+
+## Building v. pruning
+
+For a classification tree, usually:
+
+1. Either the Gini index or entropy is used to evaluate the quality of a split or branch, since these are more sensitive to node purity
+2. Any approach might be used to prune the tree (again, this is mostly software and function dependent), but classification error rate is preferable if prediction accuracy is the final goal.
+
+--
+
+Why? Classification error rate is a direct measure of accuracy, and the other two metrics are not.
+
+---
+
+## Advantages and disadvantages
+
+Decision trees have some major __advantages__ over other machine learning approaches:
+
+1. Decision trees are inherently _nonparametric_, no assumptions are made about the input or output variables beyond whether they are qualitative or quantitative.
+2. Decision trees are easy to explain to non-data scientists. 
+3. Trees can be displayed visually.
+4. Trees can handle categorical inputs without needing to create _dummy variables_.
+5. One approach to model them all.
+
+--
+
+__Disadvantages__:
+
+1. Trees often don't have the same level of predictive accuracy as other regression/classification approaches.
+2. Small changes in the data can cause a large change in the final estimated tree.
+
+---
+
+## Bagging
+
+Decision trees suffer from _high variance_. Depending on the data assigned to training/testing, the results and predictions from a decision tree can vary wildly.
+
+__Bagging (bootstrap aggregation)__: a general-purpose procedure for reducing the variance of a machine learning method
+
+--
+
+_Idea_: Individual observations have higher variance than the _average_ of a set of observations.
+
+- Averaging, or more generally, __aggregating reduces variance__.
+
+---
+
+## Bagging
+
+Build $B$ separate training data sets, and for each one, calculate a prediction model $\hat{f}^b(x)$.
+
+Average them together to obtain a single, lower-variance, machine learning model:
+
+$$\hat{f}_{avg} (x) = \frac{1}{B} \sum_{b=1}^{B} \hat{f}^b (x)$$
+
+--
+
+In practice, take repeated random samples from the same training data set using the bootstrap, and aggregate these:
+
+$$\hat{f}_{bag}(x) = \frac{1}{B} \sum_{b=1}^{B} \hat{f}^{*b} (x)$$
+
+--
+
+What happens if the output $Y$ is categorical? 
+
+- Take a _majority vote_: the prediction is the most commonly occuring class among the $B$ predictions.
+
+---
+
+## Out-of-bag error
+
+We can estimate the test error of a bagged model without performing cross-validation or needing a validation set. 
+
+- On average, each bagged tree makes use of around two-thirds of the observations. (Why? Will show on a homework problem...)
+
+- The remaining one-third of the observations not used to fit a given bagged tree are the __out-of-bag__ observations. 
+
+--
+
+__Out-of-bag error__: average the around B/3 predictions for each observation generated when the observation is "out-of-bag", and use those to estimate the error
+
+---
+
+## Variable importance measures
+
+Once we start bagging, a new problem is introduced: _there's no single tree to interpret_.
+
+- Bagging improves prediciton accuracy at the expense of interpretability. 
+
+--
+
+For numerical outputs:
+
+- Use the total amount that the $RSS$ is decreased due to splits over a given input variable, averaged over $B$ splits.
+
+--
+
+For categorical outputs:
+
+- Use the total amount that the Gini index is decreased due to splits over a given input variable, averaged over $B$ splits.
+
+---
+
+## Random forests
+
+There is a _slight_ problem with the bagging approach: each bagged tree is correlated. 
+
+- We can't completely remove that correlation, but we can decrease it by tweaking the approach.
+
+--
+
+__Random forests__: each decision tree in a random forest is built using a _random sample_ of input variables is chosen from the full set of potential input variables
+
+- Each new decision tree uses a fresh sample of $m < p$ predictors, typically:
+
+$$m \approx \sqrt{p}$$
+
+---
+
+## Random forests
+
+Suppose we have a particular input variable, with a _strong_ relationship to the output variable. Decision trees often "stop" with only one or two strong variables present.
+
+- By only using $m \approx \sqrt{p}$ input variables in each split, on average $\frac{p-m}{p}$ decision trees _won't_ include the strong predictor.
+
+- This allows us to examine other effects by removing the dominance. 
+
+---
+
+## Boosting
+
+__Boosting__: another general-purpose approach, boosting builds each new decision tree _sequentially_
+
+- Each tree is grown using information from previously grown trees
+
+---
+
+## Boosting algorithm
+
+1. Set $\hat{f}(x) = 0$ and $r_i = y_i$ for all $i$ in the training data set.
+2. For $b = 1, 2, ..., B$, repeat:
+
+    a. Fit a tree $\hat{f}^b$ with $d$ splits ($d+1$ terminal nodes) to the training data ($\mathbf{X}, \mathbf{r}$). 
+    
+    b. Update $\hat{f}$ by adding in a shrunken version of the new tree:
+    
+    $$\hat{f}(x) \leftarrow \hat{f}(x) + \lambda \hat{f}^b (x)$$
+    
+    c. Update the residuals:
+    
+    $$r_i \leftarrow r_i -\lambda \hat{f}^b (x_i)$$
+    
+3. Output the boosted model,
+
+$$\hat{f}(x) = \sum_{b=1}^B \lambda \hat{f}^b(x)$$
+
+---
+
+## Boosting parameters
+
+1. $B$: the number of trees. If $B$ is too large, boosting can overfit, although this tends to happen "slowly".
+2. $\lambda$: the shrinkage parameter. This controls how quickly boosting "learns" from the previous models. Typical values are 0.01 or 0.001. Very small $\lambda$ can require using a very large $B$ to achieve good performance.
+3. $d$: the number of splits in each tree. Often $d=1$ works well, which makes each tree more like a "stump". 
+
+--
+
+- Another term for $d$ is the _interaction depth_, and it controls the interaction order of the boosted model.
+
+---
+
+## Example: The Avila bible
+
+Can we use bagging and boosting to improve our previous models? 
+
+Refresher: These were our objectives. 
+
+1. Use page, row, and spacing features to predict the number of characters in each row.
+
+2. Predict which of the 12 copyists wrote the section of text being considered.
+
+We'll expand our models to include all possible inputs.
+
+---
+class: Rcode
+
+Bagging and boosting are both generally applicable techniques - meaning we can use them for more than decision trees.
+
+- In `caret`: use `method='treebag'`
+
+```{r}
+# I decided to use a smaller subset of predictors for computational time
+bagged_model <- train(Peak~ Col_Dist + NRows + Weight + 
+                        Mod_Col + U_Margin + L_Margin, 
+                      data = avila.tr, 
+                      method = "treebag")
+ 
+bagged_model
+```
+
+---
+class: Rcode
+
+To fit the random forest model, use `method = 'rf'`
+
+```{r, eval=FALSE}
+rf_model <- train(Peak ~ Col_Dist + NRows + Weight + 
+                        Mod_Col + U_Margin + L_Margin, 
+                  data = avila.tr, 
+                  method = "rf")
+
+```
+
+--
+
+Is either model an improvement for predicting peak?
+
+---
+
+## Variable importance
+
+To evaluate the bagged model and the random forest model, we need a measure of how important each of the variables are in the predictions.
+
+- Higher values indicate more importance in the models.
+
+```{r}
+varImp(bagged_model)
+```
+
+---
+
+## Variable importance plot
+
+```{r}
+plot(varImp(bagged_model))
+```

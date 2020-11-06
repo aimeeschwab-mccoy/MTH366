@@ -1,0 +1,522 @@
+---
+title: 'Week 11: Principal Components Analysis'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "MTH 366: Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=FALSE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+## Unsupervised learning
+
+__Unsupervised learning__: In unsupervised learning, we want to explore how a set of input variables are related to _each other_ instead of some output variable
+
+- Can we combine input features into interesting subcategories or groups?
+
+--
+
+There is no _right answer_ in unsupervised learning.
+
+---
+
+.full-width[.content-box-purple[__Clustering problems__: Create a subgrouping or classification of observations based on the input variables (no target classification to compare to!)
+
+```{r, out.width = "500px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_clustering.jpg")
+```
+
+---
+
+.full-width[.content-box-purple[__Dimensionality problems__: Create a reduced dimension set of input variables
+
+```{r, out.width = "500px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_dimension.jpg")
+```
+
+---
+
+## Principal components analysis
+
+We've already briefly discussed principal components as a _pre-processing step_: create a set of linear combinations of the input variables, and retain only a few input variables that explain the most variance.
+
+--
+
+Suppose we wish to explore $n$ observations with measurements on $p$ input features: $X_1, X_2, ..., X_p$. 
+
+- __Goal__: Find a low-dimensional representation of the data that captures as much information as possible.
+
+---
+
+## Principal components analysis
+
+For a set of features, the __first principal component__ is the normalized linear combination of the features
+
+$$Z_1 = \phi_{11}X_1 + \phi_{21}X_2 + ... + \phi_{p1} X_p$$ 
+
+that has the largest variance.
+
+--
+
+The _normalization_ constraint on the coefficients, $\phi_{j1}$, is:
+
+$$\sum_{j=1}^p \phi _{j1}^2 = 1$$
+
+- Will the scale of the input features matter?
+
+---
+
+## Principal components analysis
+
+In principal components, the $\phi_{ji}$ of the $i^{th}$ principal component are called the __loadings__.
+
+$$\mathbf{\phi_i} = (\phi_{1i} \ \ \phi_{2i} \ \ ... \ \ \phi_{pi})^T$$
+
+is called the __loading vector__.
+
+--
+
+Given $\mathbf{X} \in \mathbb{R}^{n \times p}$, how do we compute each principal component?
+
+---
+
+## Computing principal components
+
+Assume that each of the variables in $\mathbf{X}$ has been centered to have mean zero (you should _always_ do this).
+
+The first principal component loading vector is the solution to:
+
+Maximizing 
+
+$$\frac{1}{n} \sum_{i=1}^n (\sum_{j=1}^p \phi_{j1} x_ij)^2$$
+
+subject to:
+
+$$\sum_{j=1}^p \phi^2_{j1} = 1$$
+
+---
+
+## Computing principal components
+
+Let the data matrix $\mathbf{X}$ have the covariance matrix $\Sigma$ with eigenvalues $\lambda_1 \ge \lambda_2 \ge ... \ge \lambda_p \ge 0$.
+
+Consider the linear combinations:
+
+$$\begin{array}{c}
+Y_{1}=\mathbf{a}_{1}^{T}\mathbf{X}\\
+\vdots\\
+Y_{p}=\mathbf{a}_{p}^{T}\mathbf{X}
+\end{array}$$
+
+For each linear combination:
+
+$$V(Y_i)=\mathbf{a}_i^T \mathbf{\Sigma a}_i$$
+
+$$Cov(Y_i, Y_j) =\mathbf{a}_i^T \mathbf{\Sigma a}_j$$
+
+---
+
+## Computing principal components
+
+The first principal component maximizes:
+
+$$V(Y_i)=\mathbf{a}_i^T \mathbf{\Sigma a}_i$$
+
+--
+
+$V(Y_i)$ can be arbtrarily increased by increasing $\mathbf{a}_i$, so add a constraint:
+
+$$\mathbf{a}_1^T \mathbf{a}_1 = 1$$
+
+--
+
+Second, we'd like the principal components to be __uncorrelated__. That is, 
+
+$$Cov(Y_i, Y_j) =\mathbf{a}_i^T \mathbf{\Sigma a}_j=0$$
+
+for all $i \ne j$.
+
+---
+
+## Computing principal components
+
+.purple[__Theorem__]: Let $\mathbf{\Sigma}$ be the covariance matrix associated with the data matrix $\mathbf{X}$. Let $\Sigma$ have the eigenvalue-eigenvector pairs $(\lambda_i, \mathbf{e}_i)$. 
+
+Then, the $i^{th}$ principal component is:
+
+$$Y_i = \mathbf{e}_i^T \mathbf{X}$$
+
+--
+
+For the $i^{th}$ principal component, 
+
+$$V(Y_i) = \mathbf{e}_i^T \mathbf{\Sigma e}_i = \lambda_i$$
+
+$$Cov(Y_i, Y_j) =\mathbf{e}_i^T \mathbf{\Sigma e}_j=0$$
+
+---
+
+## Principal components and eigenvalues
+
+1. Principal components are linearly independent: each component is independent of all other components
+2. The eigenvalues represent the variance of the $i^{th}$ component
+3. The __proportion of variance__ explained by the first $q$ eigenvalues is:
+
+$$\frac{\lambda_1 + \lambda_2 + .... + \lambda_q}{\lambda_1 + \lambda_2 + .... + \lambda_q + ...+ \lambda_p}$$
+
+--
+
+Eventually, successive principal components won't add much "new" information in terms of the variability. So, only keep the first $q$ principal components.
+
+---
+
+## Example: WI breast cancer data set
+
+The `BreastCancer` data set from the `mlbench` library contains data from the University of Wisconsin Madison Hospital. Researchers wanted to classify samples as either benign or malignant tumors.
+
+```{r}
+library(tidyverse)
+library(caret)
+library(mlbench)
+library(recipes)
+
+data(BreastCancer)
+names(BreastCancer)
+```
+
+---
+
+## Example: WI breast cancer data set
+
+Are there different important "components" for benign v. malignant tumors?
+
+```{r}
+# Coerce all variables to be numeric
+for(i in 2:10){
+    BreastCancer[,i] <- as.numeric(BreastCancer[,i])
+}
+
+# Remove class and ID
+BreastCancer2 <- BreastCancer[, 2:10]
+
+BreastCancer2 <- BreastCancer2[complete.cases(BreastCancer2), ]
+```
+
+---
+
+## Getting back to "base"ics
+
+- In `caret`, principal components is implemented as a pre-processing method, but not as an analysis method itself.
+
+--
+
+- Other unsupervised methods are not implemented either. Why?
+
+--
+
+- `caret`: Classification And REgression Training. Without a target output variable, we can't train!
+
+--
+
+Bye, `caret`.
+
+---
+
+```{r}
+cancer_pca <- prcomp(BreastCancer2, 
+                     center=TRUE, scale=TRUE)
+summary(cancer_pca)
+```
+
+---
+
+
+Investigation: Confirm the relationships between PCA and eigenvalues.
+
+```{r}
+Sigma <- cor(BreastCancer2)
+eigen(Sigma)
+```
+
+---
+
+
+Investigation: Confirm the relationships between PCA and eigenvalues.
+
+```{r}
+summary(cancer_pca)
+
+sqrt(eigen(Sigma)$values)
+
+eigen(Sigma)$values/(sum(eigen(Sigma)$values))
+```
+
+---
+
+## Interpreting principal components
+
+The magnitude of the coefficients in each loading tell us "how important" a particular variable is in each principal component.
+
+- Another term for the loadings is the "rotation".
+
+```{r}
+cancer_pca$rotation
+```
+
+---
+
+## How many components?
+
+As a rough rule of thumb, retain:
+
+1. Enough components to explain about 80% of the total variance
+2. As many components as it takes to see an "elbow" in the _scree plot_
+
+```{r, eval=FALSE}
+# install.packages('factoextra')
+library(factoextra)
+fviz_eig(cancer_pca, 
+         main='Scree plot: breast cancer', 
+         addlabels=TRUE)
+```
+
+---
+
+```{r, echo=FALSE}
+# install.packages('factoextra')
+library(factoextra)
+fviz_eig(cancer_pca, 
+         main='Scree plot: breast cancer',
+         addlabels=TRUE)
+```
+
+---
+
+## Which variables are "important"?
+
+```{r}
+fviz_pca_var(cancer_pca)
+```
+
+---
+
+- What do you think the "contributions" are?
+
+```{r}
+fviz_pca_var(cancer_pca, col.var='contrib')
+```
+
+---
+
+## Contributions and cosines
+
+Variables that are correlated with principal components 1 and 2 are the "most" important in explaining the variability in the data set
+
+- These variables have the highest __contributions__
+
+--
+
+Variables that are "close" to the principal component will have a high `cos2` (__squared cosine__)
+
+- Variables with a low `cos2` are not well represented or "contained" in the principal components
+
+---
+
+## Contributions and cosines
+
+```{r, echo=FALSE}
+library(patchwork)
+
+p1 <- fviz_pca_var(cancer_pca, col.var='contrib')
+p2 <- fviz_pca_var(cancer_pca, col.var='cos2')
+
+p1+p2
+```
+
+---
+
+## Advantages and disadvantages
+
+Advantages:
+
+- Reduced dimensionality
+- PCs are independent (no correlations)
+
+Disadvantages:
+
+- Interpretability! Sometimes the principal components have an understandable meaning. Sometimes they don't.
+
+---
+
+## Example: Benign v. malignant tumors
+
+Is there a difference in the principal components for benign v. malignant tumors?
+
+```{r}
+Malignant <- BreastCancer %>% 
+  filter(Class == 'malignant') %>%
+  select(-c(Id, Class)) %>% 
+  drop_na()
+
+Benign <- BreastCancer %>% 
+  filter(Class == 'benign') %>%
+  select(-c(Id, Class)) %>% 
+  drop_na()
+```
+
+---
+
+## Malignant tumors
+
+```{r}
+malignant_pca <- prcomp(Malignant,
+                        center=TRUE, scale=TRUE)
+summary(malignant_pca)
+```
+
+---
+
+## Malignant tumors
+
+```{r}
+fviz_eig(malignant_pca, 
+         main='Scree plot: malignant tumors', 
+         addlabels=TRUE)
+```
+
+---
+
+## Malignant tumors
+
+```{r, echo=FALSE}
+p1 <- fviz_pca_var(malignant_pca, col.var='contrib')
+p2 <- fviz_pca_var(malignant_pca, col.var='cos2')
+
+p1+p2
+```
+
+---
+
+## Benign tumors
+
+```{r}
+benign_pca <- prcomp(Benign,
+                     center=TRUE, scale=TRUE)
+summary(benign_pca)
+```
+
+---
+
+## Benign tumors
+
+```{r}
+fviz_eig(benign_pca, 
+         main='Scree plot: benign tumors', 
+         addlabels=TRUE)
+```
+
+---
+
+## Benign tumors
+
+```{r, echo=FALSE}
+p1 <- fviz_pca_var(benign_pca, col.var='contrib')
+p2 <- fviz_pca_var(benign_pca, col.var='cos2')
+
+p1+p2
+```
+
+---
+
+## Example: College enrollment data
+
+The data set `College` in the ISLR library contains data for 777 colleges and universities featured in US News and World Report.
+
+```{r}
+library(ISLR)
+data(College)
+names(College)
+```
+
+---
+
+There are several strongly correlated variables in this data set. Can we reduce the dimensions of college enrollment?
+
+```{r, echo=FALSE}
+library(corrplot)
+corrplot(cor(College[,-1]))
+```
+
+---
+
+```{r}
+college_pca <- prcomp(College[,-1], 
+                     center=TRUE, scale=TRUE)
+summary(college_pca)
+```
+
+---
+
+```{r}
+fviz_eig(college_pca, 
+         main='Scree plot: college enrollment', 
+         addlabels=TRUE)
+```
+
+---
+
+```{r}
+fviz_pca_var(college_pca, col.var='contrib')
+```

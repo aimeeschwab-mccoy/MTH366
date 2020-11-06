@@ -1,0 +1,974 @@
+---
+title: 'Week 2: Classification Models'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=TRUE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+
+
+## Classification or regression?
+
+Machine learning problems are often grouped into two categories based on the output variable:
+
+__Classification task__: the output variable is a _categorical_ or binary response, or we want to predict membership in a particular category.
+
+__Regression task__: The output variable  is numeric, or we want to predict a numerical value.
+
+Like many machine learning tasks, the line isn't cut and dry.
+
+---
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_regression_classification.png")
+```
+
+---
+
+## Classification-task questions
+
+1. A patient arrives at the emergency room with a set of symptoms that could be attributed to one of three medical conditions. Which condition does the patient have?
+2. An online banking service must be able to determine whether or not a transaction being performed is fradulent, on the basis of the user's IP address, past transaction history, and so forth?
+3. On the basis of DNA sequence data for a number of patients with and without a given disease, a biologist would like to figure out which DNA mutations are disease-causing, and which are not?
+
+---
+
+In 2018, Kaggle surveyed members about the machine learning models they most often use in practice.
+
+```{r, out.width = "500px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_kaggle.png")
+```
+
+Source: http://www.vidora.com
+
+Not only is logistic regression one of the most frequently used techniques, it's also an interesting use case of the differences between R and Python. SO, it's a great place to start.
+
+---
+
+
+## Example: Credit card default
+
+The `Default` data set contains customer records for 10,000 credit card customers. Variables include: 
+
+- `default`: Whether or not the customer defaulted on their credit card
+- `student`: Whether or not the customer is a full-time student
+- `balance`: The average balance that the customer has remaining on their credit card after making their monthly payment
+- `income`: The customer's annual income
+
+---
+
+```{r, warning=FALSE, message=FALSE}
+# The ISLR package contains selected data sets from
+# "An Introduction to Statistical Learning with Applications
+# in R"
+library(ISLR)
+
+# The tidyverse package contains graphing and data manipulation
+# functions
+library(tidyverse)
+
+data(Default)
+head(Default)
+```
+
+---
+
+How are the three input variables (`student`, `balance`, and `income`) related to `default`?
+
+```{r}
+Default %>% ggplot(aes(x=default)) + 
+  geom_bar(aes(fill=default)) + 
+  facet_wrap(~student) + 
+  labs(title='Default rates by student status')
+```
+
+---
+
+```{r}
+Default %>% ggplot(aes(x=default, y=balance)) +
+  geom_boxplot(aes(fill=default)) + 
+  labs(title='Default v. credit card balance')
+```
+
+---
+
+```{r}
+Default %>% ggplot(aes(x=default, y=income)) + 
+  geom_boxplot(aes(fill=default)) + 
+  labs(title='Default v. customer income')
+```
+
+---
+
+`balance` looks like the input variable with the strongest relationship, so let's start there. Visually, which is the better model for predicting the _probability_ of `default`?
+
+```{r, echo=FALSE, message=FALSE}
+library(gridExtra)
+
+Default2 <- Default %>% mutate(default2 = ifelse(default=='Yes', 1, 0))
+
+p1 <- Default2 %>% ggplot(aes(x=balance, y=default2)) + 
+  geom_jitter(alpha=0.5, height=0.02) + 
+  geom_smooth(method='lm', se=FALSE) + 
+  labs(x='Balance', y='Probability of default')
+
+p2 <- Default2 %>% ggplot(aes(x=balance, y=default2)) + 
+  geom_jitter(alpha=0.5, height=0.02) + 
+  geom_smooth(method='glm', se=FALSE,
+              method.args = list(family = "binomial")) + 
+  labs(x='Balance', y='Probability of default')
+
+grid.arrange(p1, p2, nrow=1)
+
+```
+
+---
+
+## Logistic regression model
+
+$$ln\left(\frac{p}{1-p}\right)=\beta_{0}+\beta_{1}X_{1}+...+\beta_{p}X_{p}$$
+
+To convert this back to a probability, solve for $p$:
+
+$$p=\frac{e^{\beta_{0}+\beta_{1}X_{1}+...+\beta_{p}X_{p}}}{1+e^{\beta_{0}+\beta_{1}X_{1}+...+\beta_{p}X_{p}}}$$
+
+--
+
+Throughout the course, we'll rely on a few key modeling packages in R. One of them is `caret`.
+
+---
+
+## `caret`
+
+The `caret` package (short for Classification And REgression Training) contains functions to streamline the model training process for complex regression and classification problems. 
+
+- The package utilizes a number of R packages (over 30!) but tries not to load them all at package start-up (by removing formal package dependencies, the package startup time can be greatly decreased). 
+
+Install `caret` using:
+
+```{r, eval=FALSE}
+# This will probably take a while...
+install.packages("caret", 
+                 dependencies = c("Depends", "Suggests"))
+```
+
+
+---
+
+## `caret`
+
+`caret` has several functions that attempt to streamline the model building and evaluation process, as well as feature selection and other techniques.
+
+One of the primary tools in the package is the `train` function which can be used to
+
+1. Evaluate, using resampling, the effect of model tuning parameters on performance
+2. Choose the "optimal" model across these parameters
+3. Estimate model performance from a data set
+
+---
+
+```{r, out.width = "800px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_caret.png")
+```
+
+`caret` user manual: https://topepo.github.io/caret/
+
+---
+
+
+Load the `caret` package and build the model:
+
+```{r, message=FALSE}
+library(caret)
+
+model = train(
+  # Model formula
+  form = default ~ balance + income,
+  # Data set
+  data = Default,
+  # Logistic regression is also known as the 
+  # binomial GLM (generalized linear model)
+  method = "glm",
+  family = "binomial"
+)
+```
+
+---
+
+
+View the result:
+
+```{r}
+model
+```
+
+---
+
+
+For more details, use `summary`:
+
+```{r}
+summary(model)
+```
+
+---
+
+
+Compare this output to the "base R" logistic regression implementation - what's different?
+
+```{r}
+model2 <- glm(default ~ ., data=Default, family='binomial')
+
+summary(model2)
+```
+
+---
+
+## Advantages of `caret`
+
+1. Consistent modeling framework
+2. Interfaces with other R modeling packages as needed
+
+__Major__ disadvantage: 
+
+ - `tidymodels` and `parsnip` are in development to replace `caret`
+ 
+https://github.com/tidymodels/tidymodels
+
+---
+
+
+Because I know at least some of you are thinking it...
+
+--
+
+![](https://workingnation.com/wp-content/uploads/2018/06/Untitled-design-1-696x387.jpg)
+
+---
+
+## R or Python?
+
+Both languages have their advantages! However, R has one major feature that __I__ like better than Python.
+
+--
+
+Models built in R are easier to __investigate__.
+
+- Easier to access model output and diagnostics (especially visuals).
+- Easier to dive into how a model works.
+
+--
+
+For this class, I will be using R almost exclusively. __That doesn't mean that R is the best, or only, choice for doing machine learning.__
+
+---
+
+## Logistic regression
+
+In _logistic regression_, we model $P(Y=k \vert X=x)$ directly using the logistic function.
+
+__Downsides__:
+
+- When the classes are _well-separated_ (i.e. the 0s and 1s do not overlap much), the parameter estimates $\beta_i$ are notoriously unstable.
+
+--
+
+- If $n$ is small and the distribution of the predictors is approximately normal, other methods tend to outperform logistic regression.
+
+--
+
+- Logistic regression does not generalize well to more than two classes.
+
+---
+
+## Bayes' theorem
+
+Suppose we want to classify an observation into one of $K$ classes, where $K \ge 2$.
+
+--
+
+Let $\pi_k$ represent the overall _prior_ probability that a randomly chosen observation comes from the $k^{th}$ class.
+
+Let 
+
+$$f_X (x) = P(X=x \vert Y=k)$$
+
+denote the _density_ function of $X$, the input variables, for an observation from the $k^{th}$ class.
+
+--
+
+- $f_k(x)$ is large if there is a high probability that an observation in class $k$ has $X \approx x$
+- $f_k(x)$ is small if there is a low probability that an observation in class $k$ has $X \approx x$
+
+---
+
+## Bayes' theorem
+
+__Bayes' theorem__ states the following:
+
+$$p_k(x) = P(Y=k \vert X=x) = \frac{\pi_k f_k (x)}{\sum_{i=1}^K \pi_i f_i (x)}$$
+
+$p_k (x)$ is called the _posterior_ distribution.
+
+---
+
+## Bayes classifier
+
+__Bayes classifier__: this approach classifies observations to the class with the largest posterior probability
+
+- Calculate $p_k(x_0)$ for a new observation, and choose $k$ such that $p_k(x_0)$ is maximized
+
+One of the most common Bayes classifiers is "naive Bayes"
+
+---
+
+
+## Example: Palmer penguins
+
+__Example__: Researchers collected data on body measurements from penguins living on the Palmer Archipelago in Antarctica. 
+
+```{r}
+library(palmerpenguins)
+data(penguins)
+head(penguins)
+```
+
+---
+
+
+```{r}
+library(tidyverse)
+
+penguins %>% ggplot(aes(x=bill_length_mm, y=flipper_length_mm)) + 
+  geom_point(aes(col=species)) +  
+  labs(x='Bill length (mm)', 
+       y='Flipper length (mm)', 
+       title='Palmer penguins')
+```
+
+---
+
+
+Load the `caret` package and build the model:
+
+```{r, message=FALSE, error=TRUE}
+library(caret)
+
+model = train(
+  # Model formula
+  form = species ~ bill_length_mm + flipper_length_mm,
+  # Data set
+  data = penguins,
+  method = "naive_bayes") #<<
+```
+
+---
+
+
+Whoops! Remove the `NA`s and try again.
+
+```{r, message=FALSE}
+penguins.complete <- penguins %>% na.omit
+
+model = train(
+  # Model formula
+  form = species ~ bill_length_mm + flipper_length_mm,
+  # Data set
+  data = penguins.complete,
+  method = "naive_bayes") #<<
+```
+
+---
+
+
+```{r}
+model
+```
+
+---
+
+## `method = "naive_bayes"`
+
+Like many machine learning algorithms, naive Bayes has several options that can be used.
+
+- `usekernel`: if TRUE, _kernel density estimation_ is used to estimate the class conditional densities for numeric inputs. If FALSE, numeric input variables are assumed to follow a normal distribution.
+
+--
+
+- `laplace` and `adjust` are tuning parameters.
+
+--
+
+More on kernel density estimation later.
+
+How are `Accuracy` and `Kappa` different?
+   
+---
+
+## Cohen's kappa
+
+__Cohen's kappa__:   a metric that compares an "observed accuracy" with an "expected accuracy" (random chance)
+
+- Kappa can be used to evaluate a single classifier, or to compare classifiers. (Higher kappa means more accuracy)
+
+Kappa takes into account random chance agreement, which makes it less misleading than simple accuracy rates.
+
+---
+
+## Cohen's kappa
+
+An image classifier is being trained to distinguish images as either "cats" or "dogs". The image classifier starts with 30 images. The __confusion matrix__ below shows the results.
+
+```{r, echo=FALSE}
+confusion <- matrix(c(10, 5, 7, 8), nrow=2)
+rownames(confusion) <- c('Classified "cat"', 'Classified "dog"')
+colnames(confusion) <- c('Actual "cat"', 'Actual "dog"')
+confusion
+```
+
+__Observed accuracy__: the number of instances that were classified correctly
+
+---
+
+## Cohen's kappa
+
+An image classifier is being trained to distinguish images as either "cats" or "dogs". The image classifier starts with 30 images. The __confusion matrix__ below shows the results.
+
+```{r, echo=FALSE}
+confusion
+```
+
+__Expected accuracy__: the number of instances that would be classified correctly, assuming we randomly chose a category for all observations
+
+Using these, we can calculate `kappa`:
+
+$$\kappa = \frac{(observed \: accuracy - expected \: accuracy)}{(1 - expected \: accuracy)}$$
+
+---
+
+## Cohen's kappa
+
+```{r}
+names(model)
+model$levels
+```
+
+---
+
+## Cohen's kappa
+
+What makes a good `kappa`? _It depends._
+
+Landis and Koch (1977) gives: 
+
+- 0-0.20 as "slight", 
+- 0.21-0.40 as "fair", 
+- 0.41-0.60 as "moderate", 
+- 0.61-0.80 as "substantial", and 
+- 0.81-1 as "almost perfect". 
+
+--
+
+But... `r emo::ji("shrug")`
+
+---
+
+
+```{r}
+model$finalModel
+```
+
+---
+
+## Model predictions
+
+```{r}
+model$pred
+```
+
+Why are there no predictions?
+
+--
+
+```{r}
+predict(model)
+```
+
+---
+
+
+
+To examine the accuracy of our predictions, we'll add the predicted classes to our data, and construct a __confusion matrix__.
+
+```{r}
+penguins.complete <- penguins.complete %>%
+  mutate(nb_pred = predict(model))
+
+confusionMatrix(data = penguins.complete$nb_pred, #<<
+                reference = penguins.complete$species) #<<
+```
+
+---
+
+```{r, out.width = "500px", echo=FALSE, fig.align="center", }
+knitr::include_graphics("img_confusionMatrix.jpg")
+```
+
+Source: https://topepo.github.io/caret/measuring-performance.html#measures-for-class-probabilities
+
+- When there are three or more classes, `confusionMatrix` will show the confusion matrix and a set of “one-versus-all” results. For example, in a three class problem, the sensitivity of the first class is calculated against all the samples in the second and third classes (and so on).
+
+---
+
+## Model accuracy
+
+```{r, eval=FALSE}
+penguins.complete %>% 
+  mutate(nb_correct = ifelse(nb_pred==species, TRUE, FALSE)) %>%
+  ggplot(aes(x=bill_length_mm, y=flipper_length_mm)) + 
+  stat_ellipse(aes(fill=species), geom='polygon', alpha=0.2) + #<<
+  geom_point(aes(col=species, pch=nb_correct)) 
+```
+
+---
+
+## Model accuracy
+
+```{r, echo=FALSE}
+penguins.complete %>% 
+  mutate(nb_correct = ifelse(nb_pred==species, TRUE, FALSE)) %>%
+  ggplot(aes(x=bill_length_mm, y=flipper_length_mm)) + 
+  stat_ellipse(aes(fill=species), geom='polygon', alpha=0.2) + #<<
+  geom_point(aes(col=species, pch=nb_correct)) 
+```
+
+---
+
+## Overfitting v. underfitting
+
+When we fit models algorithmically, we're at increased danger of __overfitting__.
+
+```{r, out.width = "800px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_overunderfit.png")
+```
+
+---
+
+## Validation
+
+__Validation__: the process obtaining an _unbiased_ estimate of the error associated with fitting a machine learning algorithm on a set of observations
+
+- Machine learning algorithms are optimized to minimize prediction error on the _input_ data set
+- What happens when we predict using a new data set?
+
+---
+
+## Validation strategies
+
+__Hold out method__: "hold out" a portion of your data to __test__ the model on, after __training__ the algorithm on another portion of the data
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_test_training.png")
+```
+
+- The percentages used are arbitrary at best. Common splits are 50-50%, 75-25%, and 80-20%.
+
+---
+
+## Validation strategies
+
+__k-fold cross validation__: repeat the testing/training assignment k times, then aggregate results
+
+```{r, out.width = "400px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_kfold.jpg")
+```
+
+- We'll start with the "hold out" method, and come back to k-fold cross validation a little later.
+
+---
+
+
+In `caret`, we can use the `createDataPartition` to create _balanced splits_ into testing and training data sets.
+
+```{r, message=FALSE}
+library(caret)
+
+set.seed(366) #<<
+
+trainIndex <- createDataPartition(penguins.complete$species, 
+                                  p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+```
+
+---
+
+The vector `trainIndex` contains row numbers to assign to the training data. 
+
+```{r}
+head(trainIndex)
+```
+
+```{r}
+penguins.train <- penguins.complete[trainIndex,]
+penguins.test  <- penguins.complete[-trainIndex,]
+```
+
+---
+
+## Balanced splits
+
+```{r, echo=FALSE}
+library(patchwork)
+
+p1 <- penguins.train %>% ggplot(aes(x=species)) + geom_bar(aes(fill=species)) + guides(fill=FALSE) + labs(title='Training')
+p2 <- penguins.test %>% ggplot(aes(x=species)) + geom_bar(aes(fill=species)) + guides(fill=FALSE) + labs(title='Testing')
+
+p1+p2
+```
+
+---
+
+## Unbalanced splits?
+
+If we don't care about having balance in our testing/training data, we can use _simple random sampling_ with the `sample()` function.
+
+```{r}
+trainIndex2 <- sample(1:nrow(penguins.complete),
+                      size=floor(0.8*nrow(penguins.complete)))
+
+head(trainIndex2)
+
+penguins.train2 <- penguins.complete[trainIndex2,]
+penguins.test2  <- penguins.complete[-trainIndex2,]
+```
+
+---
+
+## Unbalanced splits
+
+```{r, echo=FALSE}
+p1 <- penguins.train2 %>% ggplot(aes(x=species)) + geom_bar(aes(fill=species)) + guides(fill=FALSE) + labs(title='Training')
+p2 <- penguins.test2 %>% ggplot(aes(x=species)) + geom_bar(aes(fill=species)) + guides(fill=FALSE) + labs(title='Testing')
+
+p1+p2
+```
+
+---
+
+
+Let's apply the Naive Bayes classification model to the `penguins` data set, using the balanced testing/training data.
+
+```{r, message=FALSE}
+model = train(
+  # Model formula
+  form = species ~ bill_length_mm + flipper_length_mm,
+  # Data set
+  data = penguins.train,  #<<
+  method = "naive_bayes")
+```
+
+---
+
+```{r}
+model
+```
+
+---
+
+To see the predictions on the _testing_ data, use the `predict()` function.
+
+```{r, message=FALSE}
+predict(model, newdata=penguins.test)
+```
+
+How well is the model performing?
+
+---
+
+```{r, echo=FALSE}
+penguins.test %>% mutate(nb_pred = predict(model, newdata=penguins.test)) %>%
+  mutate(nb_correct = ifelse(nb_pred==species, 
+                                    TRUE, FALSE)) %>%
+  ggplot(aes(x=bill_length_mm, y=flipper_length_mm)) + 
+  stat_ellipse(aes(fill=species), geom='polygon', alpha=0.2) + #<<
+  geom_point(aes(col=species, pch=nb_correct)) 
+```
+
+---
+
+## What makes this "naive"?
+
+1. Naive Bayes assumes that each of the input variables (__features__) is independent.
+2. Prior probabilties are assigned in a "naive" way
+
+---
+
+## Example: Credit card default
+
+The `Default` data set contains customer records for 10,000 credit card customers. Variables include: 
+
+- `default`: Whether or not the customer defaulted on their credit card
+- `student`: Whether or not the customer is a full-time student
+- `balance`: The average balance that the customer has remaining on their credit card after making their monthly payment
+- `income`: The customer's annual income
+
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(ISLR)
+library(tidyverse)
+
+data(Default)
+Default %>% ggplot(aes(x=income, y=balance)) + 
+  geom_point(aes(col=default))
+```
+
+
+---
+
+Build a testing/training data set, and use a model to predict whether or not a customer defaults based on their income and credit card balance:
+
+```{r, message=FALSE}
+trainIndex_Default <- sample(1:nrow(Default),
+                      size=floor(0.75*nrow(Default)))
+
+DefaultTrain <- Default[trainIndex_Default,]
+DefaultTest  <- Default[-trainIndex_Default,]
+
+model_Default = train(
+  form = default ~ income + balance,
+  data = DefaultTrain,
+  method = "naive_bayes")
+```
+
+1. What did we use for the training-testing split?
+2. Will the training-testing data be balanced or unbalanced?
+
+---
+
+```{r}
+model_Default
+```
+
+---
+
+```{r}
+model_Default$finalModel
+```
+
+---
+
+## Prior probabilities
+
+```{r, eval=FALSE}
+ A priori probabilities: 
+
+        No        Yes 
+0.96506667 0.03493333 
+```
+
+Frequencies in the training data:
+
+```{r}
+DefaultTrain %>% group_by(default) %>% summarize(n=n())
+```
+
+---
+
+## Example: Scheduling HPC jobs
+
+The data set `schedulingData` consists of information on 4331 jobs in a high performance computing environment. Seven attributes were recorded for each job along with a discrete class describing the execution time. The predictors are: 
+
+- Protocol (the type of computation), 
+- Compounds (the number of data points for each jobs), 
+- InputFields (the number of characteristic being estimated), 
+- Iterations (maximum number of iterations for the computations), 
+- NumPending (the number of other jobs pending at the time of launch), 
+- Hour (decimal hour of day for launch time) and Day (of launch time).
+
+The classes are: VF (very fast), F (fast), M (moderate) and L (long). To optimize performance, we'd like to assign tasks based on how long we think they will take.
+
+---
+
+## Example: Scheduling HPC jobs
+
+```{r}
+library(AppliedPredictiveModeling)
+library(tidyverse)
+
+data(schedulingData)
+nrow(schedulingData)
+head(schedulingData)
+```
+
+---
+
+````{r}
+schedulingData %>% ggplot(aes(x=Compounds, y=InputFields)) + 
+  geom_point(aes(col=Class))
+```
+
+---
+
+````{r}
+schedulingData %>% ggplot(aes(x=Compounds, y=InputFields)) + 
+  geom_point(aes(col=Class)) + 
+  scale_x_continuous(trans='log10') +
+  scale_y_continuous(trans='log10')
+```
+
+---
+
+## Building the model
+
+The classes are less distinguishable, so this model might be trickier to fit. Let's try using both balanced and unbalanced splits, and see which works best.
+
+1. Naive Bayes with balanced training-testing data (80-20% split)
+2. Naive Bayes with unbalanced training-testing data (80-20% split)
+
+---
+
+Balanced training-testing:
+
+```{r}
+trainIndex <- createDataPartition(schedulingData$Class, #<<
+                                  p = .80, 
+                                  list = FALSE, 
+                                  times = 1)
+scheduling_Train_Balance <- schedulingData[trainIndex,]
+scheduling_Test_Balance <- schedulingData[-trainIndex,]
+```
+
+Unbalanced training-testing:
+
+```{r}
+trainIndex2 <- sample(1:nrow(schedulingData), #<<
+                      size=floor(0.80*nrow(schedulingData))) 
+
+scheduling_Train_Unbalance <- schedulingData[trainIndex2,]
+scheduling_Test_Unbalance <- schedulingData[-trainIndex2,]
+```
+
+---
+
+Scenario 1: Naive Bayes with balanced training-testing data (80-20% split)
+
+```{r}
+model1 = train(
+  form = Class ~ .,
+  data = scheduling_Train_Balance,  #<<
+  method = "naive_bayes")
+```
+
+---
+
+Scenario 1: Naive Bayes with balanced training-testing data (80-20% split)
+
+```{r}
+model1
+```
+
+---
+
+Scenario 1: Naive Bayes with balanced training-testing data (80-20% split)
+
+```{r}
+confusionMatrix(data = predict(model1, scheduling_Test_Balance),
+                reference = scheduling_Test_Balance$Class)
+```
+
+---
+
+Scenario 2: Naive Bayes with unbalanced training-testing data (80-20% split)
+
+```{r}
+model2 = train(
+  form = Class ~ .,
+  data = scheduling_Train_Unbalance,  #<<
+  method = "naive_bayes")
+```
+
+---
+
+Scenario 2: Naive Bayes with unbalanced training-testing data (80-20% split)
+
+```{r}
+model2
+```
+
+---
+
+Scenario 2: Naive Bayes with unbalanced training-testing data (80-20% split)
+
+```{r}
+confusionMatrix(data = predict(model2, scheduling_Test_Unbalance),
+                reference = scheduling_Test_Unbalance$Class)
+```
+
+---
+
+## Results
+
+1. The balanced split has better accuracy and kappa than the unbalanced split.
+2. Both models overpredict the "F" class compared to the other classes.
+3. Naive Bayes doesn't seem to work well to predict classes for this data.
+
+Is this because the data is too variable, or because of the method we selected?
+
+- Why not logistic regression?

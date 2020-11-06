@@ -1,0 +1,1472 @@
+---
+title: 'Week 3: More Classification Models'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "MTH 366: Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=FALSE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+## Bayes' classier
+
+The __Bayes' classifier__ has the lowest possible error rate out of all classifiers...
+
+- Assuming that $\pi_i$ and $f_i(x)$ are correctly specified
+- If they aren't, then we may have an issue
+
+---
+
+## Bayes' classifier, modified
+
+Assume that $p=1$ (we have a single predictor). We need to find an estimate for $f_k(x)$ to estimate $p_k(x)$.
+
+$$P(Y = k \vert X = x) = \frac{\pi_k f_k(x)}{\sum_{i=1}^K \pi_i f_i (x)}$$
+
+---
+
+## Normal distribution
+
+One solution is to assume that $f_k (x)$ follows a __normal distribution__:
+
+$$f_k (x) = \frac{1}{\sqrt{2\pi \sigma_k^2}} exp [\, -\frac{1}{2\sigma^2_k} (x-\mu_k)^2 ]\,$$
+
+- $\mu_k$ represents the mean of class $k$ and $\sigma^2_k$ represents the variance.
+
+- For simplicity, assume that $\sigma^2_1 = \sigma^2_2 = ... = \sigma^2 _K$.
+
+---
+
+## Bayes' classifier, modified
+
+$$P(Y = k \vert X = x) = \frac{\pi_k \frac{1}{\sqrt{2\pi \sigma^2}} exp [\, -\frac{1}{2\sigma_k} (x-\mu_k)^2 ]\,}{\sum_{i=1}^K \pi_i \frac{1}{\sqrt{2\pi \sigma^2}} exp [\, -\frac{1}{2\sigma_k} (x-\mu_i)^2 ]\,}$$
+
+With some algebra, $P(Y = k \vert X=x)$ is maximized by maximizing:
+
+$$\delta_k (x) = x \times \frac{\mu_k}{\sigma^2} - \frac{\mu^2_k}{2\sigma^2} + log(\pi_k)$$
+
+---
+
+Where should we place the "decision boundary"?
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(gridExtra)
+
+p1 <- ggplot(data.frame(x = c(-5, 5)), aes(x)) + 
+  stat_function(fun = dnorm, args = list(-1.5, 1), col='#f8766d', lwd=2) +
+  stat_function(fun = dnorm, args = list(1.5, 1), col='#00bfc4', lwd=2)
+
+x1 <- tibble(x = c(rnorm(n=20, mean=-1.5, sd=1),rnorm(n=20, mean=1.5, sd=1)), 
+             class = c(rep('A', 20), rep('B', 20)))
+
+p2 <- x1 %>% ggplot(aes(x=x, fill=class)) + geom_histogram(position="identity", alpha=0.5, bins=15, col='black')
+
+grid.arrange(p1, p2, nrow=1)
+```
+
+---
+
+## Bayes' classifier
+
+If $K=2$ and both classes are "equally likely", that is $\pi_1 = \pi_2$, the decision boundary corresponds to the point where 
+
+$$x = \frac{\mu_1^2 + \mu_2^2}{2(\mu_1 -\mu_2)}$$
+
+--
+
+- If the classes are not equally likely, $\pi_1 \ne \pi_2$, the decision boundary is weighted based on the prior probabilities.
+
+---
+
+Where should we place the "decision boundary"?
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(gridExtra)
+
+p1 <- ggplot(data.frame(x = c(-5, 5)), aes(x)) 
+
+x1 <- tibble(x = c(rnorm(n=20, mean=-1, sd=1),rnorm(n=30, mean=0.75, sd=1)), 
+             class = c(rep('A', 20), rep('B', 30)))
+
+p2 <- x1 %>% ggplot(aes(x=x, fill=class)) + geom_histogram(position="identity", alpha=0.5, bins=15, col='black')
+
+grid.arrange(p1, p2, nrow=1)
+```
+
+--
+
+In real life, this is a much harder decision! 
+
+- $n_1 \ne n_2$
+- $\pi_1 \ne \pi_2$
+
+---
+
+## Linear discriminant analysis
+
+In practice, even if we know that $X$ comes from a normal distribution, we still have to estimate the parameters and prior:
+
+- $\mu_1, ..., \mu_k$
+- $\pi_1, ..., \pi_k$
+- $\sigma^2$
+
+__Linear discriminant analysis__: LDA _approximates_ the Bayes' classifier by plugging estimates for the parameters into our previous equation
+
+---
+
+## Linear discriminant analysis
+
+Estimators used:
+
+$$\hat{\mu}_k = \frac{1}{n_k} \sum_{i:y_i = k} x_i$$
+
+- In words: .blue[the sample mean of the input variable for class k]
+
+--
+
+$$\hat{\sigma}^2 = \frac{1}{n-K} \sum_{k=1}^K \sum_{i:y_i = k} (x_i -\hat{\mu}_k)^2$$
+
+- In words: .blue[calculate the sum of the squared deviations within each class, then "average" them]
+
+--
+
+$$\hat{\pi}_k = \frac{n_k}{n}$$
+
+- where $n$ is the total number of training observations and $n_k$ is the number of training observations in class $k$.
+
+- In words: .blue[use the frequencies in the training data as our "prior" probabilities]
+
+---
+
+## Linear discriminant analysis
+
+After estimating all $\hat{\mu}_k$, $\hat{\pi}_k$, and $\sigma^2$, plug the estimates into:
+
+$$\hat{\delta}_k (x) = x \times \frac{\hat{\mu}_k}{\hat{\sigma}^2} - \frac{\hat{\mu}^2_k}{2\hat{\sigma}^2} + log(\hat{\pi}_k)$$
+
+Why linear?
+
+--
+
+- The _discriminant_ function $\hat{\delta}_x$ is a _linear_ function of $x$, as opposed to one more complex.
+
+$$\hat{\delta}_k (x) = ax + b$$
+
+where $a = \frac{\hat{\mu}_k}{\hat{\sigma}^2}$ and $b = -\frac{\hat{\mu}^2_k}{2\hat{\sigma}^2} + log(\hat{\pi}_k)$
+
+---
+
+
+## Example: Palmer penguins
+
+__Example__: Researchers collected data on body measurements from penguins living on the Palmer Archipelago in Antarctica. 
+
+```{r}
+library(palmerpenguins)
+data(penguins)
+head(penguins)
+```
+
+---
+
+
+```{r}
+penguins %>% ggplot(aes(x=flipper_length_mm)) + 
+  geom_histogram(aes(fill=species), position='identity', bins=20, alpha=0.5)
+```
+
+---
+
+
+Load the `caret` package and build the model:
+
+```{r, message=FALSE}
+library(caret)
+penguins <- penguins %>% 
+  filter(species != 'NA', 
+         flipper_length_mm != 'NA')
+
+model = train(
+  form = species ~ flipper_length_mm,
+  data = penguins,
+  method = "lda2") #<<
+```
+
+---
+
+
+```{r}
+model
+```
+
+---
+
+
+```{r}
+model$finalModel
+```
+
+---
+
+Note: Because of the small sample size, $n=150$, I've skipped creating a testing/training data set.
+
+```{r}
+confusionMatrix(data = predict(model, penguins), 
+                reference = penguins$species)
+```
+
+---
+
+## Linear discriminant analysis
+
+To extend LDA to $p > 1$, we need the __multivariate normal__ distribution:
+
+- Assume that each input variable follows a normal distribution
+- Allow for some correlation $R_{ij} \ne 0$ between each $X_i, X_j$
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center", }
+knitr::include_graphics("img_mult_normal.png")
+```
+
+---
+
+
+Now, use linear discriminant analysis to classify penguins into species by flipper length and bill length.
+
+```{r, message=FALSE}
+model_2 = train(
+  form = species ~ flipper_length_mm + bill_length_mm,
+  data = penguins,
+  method = "lda2") #<<
+
+model_2
+```
+
+---
+
+
+What do you think the "discriminants" represent?
+
+```{r, message=FALSE}
+model_2$finalModel
+```
+
+---
+
+## Visualizing results
+
+For some algorithms, we can use `plot()` to visualize the model-fitting process:
+
+```{r}
+plot(model_2)
+```
+
+---
+
+## Visualizing results
+
+The `caret` package is a "catch-all" for machine learning algorithms, but it does not provide visualizations for understanding _every single method_. We also don't have a convenient way to visualize _predictions_! 
+
+To picture what's happening, we can get creative.
+
+1. Use another R package such as `klaR`
+2. Plot the region "by force".
+
+
+---
+
+
+__Option 1__: Use another R package such as `klaR`
+
+```{r}
+library(klaR)
+partimat(species ~ flipper_length_mm + bill_length_mm, 
+         data = penguins, method = "lda")
+```
+
+---
+
+
+__Option 2__: Plot the region "by force".
+
+```{r}
+n_breaks <- 100
+
+PredA <- seq(min(penguins$flipper_length_mm), max(penguins$flipper_length_mm), 
+             length = n_breaks)
+PredB <- seq(min(penguins$bill_length_mm), max(penguins$bill_length_mm), 
+             length = n_breaks)
+
+Grid <- expand.grid(flipper_length_mm = PredA, bill_length_mm = PredB)
+head(Grid)
+```
+
+---
+
+
+__Option 2__: Plot the region "by force".
+
+```{r}
+lda_predictions <- predict(model_2, Grid)  #<<
+head(lda_predictions)
+
+Grid <- Grid %>% mutate(pred=lda_predictions)
+```
+
+---
+
+
+__Option 2__: Plot the region "by force".
+
+```{r}
+Grid %>% ggplot(aes(x = flipper_length_mm, y = bill_length_mm,
+                     color = pred)) +
+  geom_tile(aes(fill = pred))
+```
+
+---
+
+
+Even better (ish):
+
+```{r}
+Grid %>% ggplot(aes(x = flipper_length_mm, y = bill_length_mm,
+                     color = pred)) +
+  geom_tile(aes(fill = pred), alpha=0.05) + 
+  geom_point(data=penguins, aes(x=flipper_length_mm, 
+                            y=bill_length_mm, col=species))
+```
+
+---
+
+
+Or shade instead of outline:
+
+```{r}
+Grid %>% ggplot(aes(x = flipper_length_mm, y = bill_length_mm)) +
+  geom_tile(aes(fill = pred), alpha=0.3) + #<<
+  geom_point(data=penguins, aes(x=flipper_length_mm, 
+                            y=bill_length_mm, col=species))
+```
+
+---
+
+
+## Example: Credit card default
+
+The `Default` data set contains customer records for 10,000 credit card customers. Variables include: 
+
+- `default`: Whether or not the customer defaulted on their credit card
+- `student`: Whether or not the customer is a full-time student
+- `balance`: The average balance that the customer has remaining on their credit card after making their monthly payment
+- `income`: The customer's annual income
+
+---
+
+
+Based on income and credit card balance, where do you expect the decision boundary to fall?
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(ISLR)
+library(tidyverse)
+
+data(Default)
+Default %>% ggplot(aes(x=income, y=balance)) + 
+  geom_point(aes(col=default))
+```
+
+---
+
+
+```{r, message=FALSE}
+trainIndex_Default <- sample(1:nrow(Default),
+                      size=floor(0.75*nrow(Default)))
+
+DefaultTrain <- Default[trainIndex_Default,]
+DefaultTest  <- Default[-trainIndex_Default,]
+
+model_Default = train(
+  form = default ~ balance + income,
+  data = DefaultTrain,
+  method = "lda2")
+```
+
+---
+
+
+```{r}
+model_Default
+```
+
+---
+
+
+```{r}
+model_Default$finalModel
+```
+
+---
+
+
+```{r}
+partimat(default ~ balance + income, 
+         data = DefaultTrain, method = "lda")
+```
+
+---
+
+
+```{r, echo=FALSE}
+n_breaks <- 100
+
+PredA <- seq(min(DefaultTrain$balance), max(DefaultTrain$balance), 
+             length = n_breaks)
+PredB <- seq(min(DefaultTrain$income), max(DefaultTrain$income), 
+             length = n_breaks)
+
+Grid <- expand.grid(balance = PredA, income = PredB)
+
+lda_predictions <- predict(model_Default, Grid)
+
+Grid %>% mutate(pred=lda_predictions) %>% 
+  ggplot(aes(x = income, y = balance)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  geom_point(data=DefaultTest, aes(x=income, 
+                            y=balance, col=default))
+```
+
+---
+
+
+## Example: Scheduling HPC jobs
+
+The data set `schedulingData` consists of information on 4331 jobs in a high performance computing environment. Seven attributes were recorded for each job along with a discrete class describing the execution time. The predictors are: 
+
+- Protocol (the type of computation), 
+- Compounds (the number of data points for each jobs), 
+- InputFields (the number of characteristic being estimated), 
+- Iterations (maximum number of iterations for the computations), 
+- NumPending (the number of other jobs pending at the time of launch), 
+- Hour (decimal hour of day for launch time) and Day (of launch time).
+
+The classes are: VF (very fast), F (fast), M (moderate) and L (long). To optimize performance, we'd like to assign tasks based on how long we think they will take.
+
+---
+
+
+Naive Bayes didn't handle this task so well... what about LDA?
+
+```{r}
+library(AppliedPredictiveModeling)
+
+data(schedulingData)
+nrow(schedulingData)
+head(schedulingData)
+```
+
+---
+
+
+The balanced training-testing split worked better, so let's keep that going. For comparison's sake, continue to use an 80-20% split.
+
+```{r}
+trainIndex <- createDataPartition(schedulingData$Class, #<<
+                                  p = .80, 
+                                  list = FALSE, 
+                                  times = 1)
+scheduling_Train <- schedulingData[trainIndex,]
+scheduling_Test <- schedulingData[-trainIndex,]
+```
+
+---
+
+
+```{r}
+model_hpc = train(
+  form = Class ~ .,
+  data = scheduling_Train,
+  method = "lda2")
+```
+
+---
+
+
+```{r}
+model_hpc
+```
+
+---
+
+
+```{r}
+confusionMatrix(data = predict(model_hpc, scheduling_Test),
+                reference = scheduling_Test$Class)
+```
+
+---
+
+
+How can we visualize the results over $p > 2$?
+
+```{r, error=TRUE}
+n_breaks <- 100
+
+PredA <- seq(min(scheduling_Train$Compounds),
+             max(scheduling_Train$Compounds), 
+             length = n_breaks)
+PredB <- seq(min(scheduling_Train$InputFields),
+             max(scheduling_Train$InputFields), 
+             length = n_breaks)
+
+Grid <- expand.grid(Compounds = PredA, InputFields = PredB)
+
+lda_predictions <- predict(model_hpc, Grid)
+```
+
+---
+
+
+The `predict` function requires values for all variables used in the model. 
+
+- _One_ potential solution: set all other values to the mean, or a level of particular interest.
+
+```{r}
+names(scheduling_Train)
+levels(scheduling_Train$Protocol)
+levels(scheduling_Train$Day)
+
+nrow(Grid)
+```
+
+---
+
+
+```{r}
+Grid <- Grid %>%
+  mutate(Protocol = 'A',
+         Iterations = mean(scheduling_Train$Iterations),
+         NumPending = min(scheduling_Train$NumPending),
+         Hour = max(scheduling_Train$Hour),
+         Day = 'Sun')
+
+lda_predictions <- predict(model_hpc, Grid)
+```
+
+---
+
+
+```{r, echo=FALSE}
+Grid %>% mutate(pred=lda_predictions) %>% 
+  ggplot(aes(x = Compounds, y = InputFields)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  geom_point(data=scheduling_Test, aes(x=Compounds, 
+                            y=InputFields, col=Class))
+```
+
+---
+
+
+What does our decision boundary look like during class time, using protocol "C"?
+
+```{r}
+Grid <- Grid %>%
+  mutate(Protocol = 'C',
+         Iterations = mean(scheduling_Train$Iterations),
+         NumPending = mean(scheduling_Train$NumPending),
+         Hour = 11.50,
+         Day = 'Tue')
+
+lda_predictions <- predict(model_hpc, Grid)
+```
+
+---
+
+
+```{r, echo=FALSE}
+Grid %>% mutate(pred=lda_predictions) %>% 
+  ggplot(aes(x = Compounds, y = InputFields)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  geom_point(data=scheduling_Test, aes(x=Compounds, 
+                            y=InputFields, col=Class))
+```
+
+---
+
+## Quadratic discriminant analysis
+
+Let's revisit the Default data set. What would a non-linear discriminant analysis look like?
+
+```{r, message=FALSE}
+model_Default2 = train(
+  form = default ~ balance + income,
+  data = DefaultTrain,
+  method = "qda")
+```
+
+---
+
+```{r}
+model_Default2
+```
+
+---
+
+```{r, echo=FALSE}
+n_breaks <- 100
+
+PredA <- seq(min(Default$balance), max(Default$balance), 
+             length = n_breaks)
+PredB <- seq(min(Default$income), max(Default$income), 
+             length = n_breaks)
+
+Grid <- expand.grid(balance = PredA, income = PredB)
+
+lda_predictions <- predict(model_Default2, Grid)  #<<
+
+Grid %>% mutate(pred=lda_predictions) %>%
+  ggplot(aes(x = income, y = balance)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  geom_point(data=DefaultTest, aes(x=income, 
+                            y=balance, col=default))
+```
+
+---
+
+```{r, echo=FALSE}
+p1 <- Grid %>% mutate(pred=predict(model_Default, Grid)) %>%
+  ggplot(aes(x = income, y = balance)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  labs(title='Linear discriminant') + guides(fill=FALSE, col=FALSE) + 
+  geom_point(data=DefaultTest, aes(x=income, 
+                            y=balance, col=default))
+  
+p2 <- Grid %>% mutate(pred=lda_predictions) %>%
+  ggplot(aes(x = income, y = balance)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  labs(title='Quadratic discriminant') + guides(fill=FALSE, col=FALSE) + 
+  geom_point(data=DefaultTest, aes(x=income, 
+                            y=balance, col=default))
+
+grid.arrange(p1, p2, nrow=1)
+```
+
+---
+
+## How often do LDA and QDA disagree?
+
+```{r}
+# Calculate predictions for both, and add to the testing data
+DefaultTest <- DefaultTest %>%
+  mutate(pred_LDA = predict(model_Default, DefaultTest),
+         pred_QDA = predict(model_Default2, DefaultTest))
+
+DefaultTest %>% group_by(pred_LDA, pred_QDA) %>% summarize(n=n())
+```
+
+---
+
+What can the disagreements tell us?
+
+```{r, echo=1:2}
+DefaultTest <- DefaultTest %>%
+  mutate(Agree = ifelse(pred_LDA == pred_QDA, 'Agree', 'Disagree'))
+
+p1 <- Grid %>% mutate(pred=predict(model_Default, Grid)) %>%
+  ggplot(aes(x = income, y = balance)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  labs(title='Linear discriminant') + guides(fill=FALSE) + 
+  geom_point(data=DefaultTest, aes(x=income, 
+                            y=balance, col=Agree))
+  
+p2 <- Grid %>% mutate(pred=lda_predictions) %>%
+  ggplot(aes(x = income, y = balance)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  labs(title='Quadratic discriminant') + guides(fill=FALSE) + 
+  geom_point(data=DefaultTest, aes(x=income, 
+                            y=balance, col=Agree))
+
+grid.arrange(p1, p2, nrow=1)
+```
+
+---
+
+
+## Example: HPC scheduling
+
+Linear discriminant analysis didn't work so well with this data, will quadratic discriminant analysis be an improvement?
+
+```{r, error=TRUE}
+model_hpc2 = train(
+  form = Class ~ .,
+  data = scheduling_Train,
+  method = "qda")
+```
+
+---
+
+__"Rank-deficiency" error__: this error is a sure-sign that your model is too complex, and is more likely to occur when you have categorical input variables
+
+--
+
+- More on what this means mathematically later...
+
+```{r}
+# Solution: what if we remove protocol, hour, and day?
+model_hpc2 = train(
+  form = Class ~ Compounds + InputFields + Iterations + NumPending,
+  data = scheduling_Train,
+  method = "qda")
+```
+
+---
+
+```{r}
+model_hpc2$finalModel
+```
+
+---
+
+```{r, echo=FALSE}
+n_breaks <- 100
+
+PredA <- seq(min(scheduling_Train$Compounds),
+             max(scheduling_Train$Compounds), 
+             length = n_breaks)
+PredB <- seq(min(scheduling_Train$InputFields),
+             max(scheduling_Train$InputFields), 
+             length = n_breaks)
+
+Grid <- expand.grid(Compounds = PredA, InputFields = PredB)
+
+Grid <- Grid %>%
+  mutate(Iterations = mean(scheduling_Train$Iterations),
+         NumPending = mean(scheduling_Train$NumPending))
+
+qda_predictions <- predict(model_hpc2, Grid)
+
+p1 <- Grid %>% mutate(pred=lda_predictions) %>% 
+  ggplot(aes(x = Compounds, y = InputFields)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  geom_point(data=scheduling_Test, aes(x=Compounds, 
+                            y=InputFields, col=Class)) + 
+  labs(title='LDA predictions (all others at mean)')
+
+p2 <- Grid %>% mutate(pred=lda_predictions) %>% 
+  ggplot(aes(x = Compounds, y = InputFields)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  geom_point(data=scheduling_Test, aes(x=Compounds, 
+                            y=InputFields, col=Class)) + 
+  labs(title='QDA predictions (all others at mean)')
+
+grid.arrange(p1, p2, nrow=1)
+```
+
+---
+
+LDA accuracy: 0.7025 (0.6708, 0.7329)
+
+```{r}
+confusionMatrix(data = predict(model_hpc2, scheduling_Test),
+                reference = scheduling_Test$Class)
+```
+
+---
+
+## k-nearest neighbors
+
+Suppose we don't want to make any assumptions about the distribution of the $X_i$'s. A _really_ simple classifier involves looking for similar observations, and basing our classification on those.
+
+--
+
+__k-Nearest Neighbors__: For some positive integer K, identify the K points "closest" to each new observation, and classify the new observation to the category with highest probability in the K closest points
+
+---
+
+## k-nearest neighbors
+
+More formally, let $x_0$ be a new classification point, and let $\mathscr{K}_0$ represent the set of the $K$ points closest to $x_0$.
+
+Estimate the conditional probability of class $j$ as:
+
+$$P(Y = j \vert X=x_0) = \frac{1}{K} \sum _{i \in \mathscr{K}_0} I(y_i = j)$$
+
+Classify $x_0$ to class $j$ with the largest probability.
+
+--
+
+Two practical questions:
+
+1. How should we define the "distance"?
+2. How can we select the optimal $K$?
+
+---
+
+## Example: Palmer penguins
+
+Since we're already familiar with the `penguins` data set, let's use it to illustrate how k-nearest neighbors will work.
+
+Consider a new data point: $x_0 = (200, 43)$.
+
+```{r, echo=FALSE}
+penguins %>% ggplot(aes(x=flipper_length_mm, y=bill_length_mm)) +
+  geom_point(aes(col=species, pch=species)) + 
+  geom_point(aes(x=200, y=43), cex=2,
+             col='black', fill='yellow', pch=21)
+```
+
+---
+
+Draw a circle around the nearby points:
+
+```{r, echo=FALSE}
+penguins %>% ggplot(aes(x=flipper_length_mm, y=bill_length_mm)) +
+  geom_point(aes(col=species, pch=species)) + 
+  geom_point(aes(x=200, y=43), cex=2,
+             col='black', fill='yellow', pch=21) +
+    geom_point(aes(x=200, y=43), cex=29,
+             col='black', pch=1)
+```
+
+---
+
+## Euclidean distance
+
+Depending on the __distance metric__ and __neighborhood size__, our predicted class might change.
+
+Common distance metrics include:
+
+__Euclidean distance__: the "straight-line" distance between two points in Euclidean space
+
+For two points in $\mathbb{R}^p$, $\mathbf{x}_i$ and $\mathbf{x}_j$:
+
+$$d(\mathbf{x}_i, \mathbf{x}_j) = \sqrt{(x_{i1} - x_{j1})^2 + (x_{i2} - x_{j2})^2 + ... + (x_{ik} + x_{jk})^2}$$
+
+- In `caret`: set `method = knn`
+
+---
+
+## Minkowski distance
+
+__Minkowski distance__: a "generalized" distance metric
+
+For two points in $\mathbb{R}^p$, $\mathbf{x}_i$ and $\mathbf{x}_j$:
+
+$$D(\mathbf{x}_{i},\mathbf{x}_{j})=\left(\sum_{l=1}^{k}\vert x_{il}-x_{jl}\vert^{p}\right)^{\frac{1}{p}}$$
+
+- How are Minkowski distance and Euclidean distance related?
+
+- In `caret`: set `method = kknn`
+
+---
+
+
+## Example: WI breast cancer data set
+
+The `BreastCancer` data set from the `mlbench` library contains a landmark data set from the University of Wisconsin Madison Hospital. Researchers wanted to classify samples as either benign or malignant tumors.
+
+```{r}
+library(mlbench)
+data(BreastCancer)
+nrow(BreastCancer)
+
+head(BreastCancer)
+```
+
+---
+
+
+About 1/3 of the tumors sampled were _malignant_, and 2/3 were _benign_. Let's use all variables (except patient ID) to build a k-nearest neighbors classifier.
+
+```{r}
+BreastCancer %>% ggplot(aes(x=Class)) + 
+  geom_bar(aes(fill=Class))
+```
+
+---
+
+
+```{r, error=TRUE}
+trainIndex <- createDataPartition(BreastCancer$Class, 
+                                          p=0.75, 
+                                          list=FALSE, 
+                                          times=1)
+Train <- BreastCancer[trainIndex,]
+Test  <- BreastCancer[-trainIndex,]
+
+model_BC = train(
+  form = Class ~ . - Id,
+  data = Train,
+  method = "knn")
+```
+
+---
+
+
+```{r}
+BreastCancer2 <- BreastCancer[complete.cases(BreastCancer),] #<<
+nrow(BreastCancer2)
+
+# In the original data, variables 2-10 are classified 
+#     as "ordered factors"
+# For our purposes, we'd like to treat these as numerical
+for(i in 2:10){
+    BreastCancer2[,i] <- as.numeric(BreastCancer2[,i])
+}
+
+trainIndex <- createDataPartition(BreastCancer2$Class, 
+                                          p=0.75, 
+                                          list=FALSE, 
+                                          times=1)
+
+# Remove the Id column
+Train <- BreastCancer2[trainIndex, -1]
+Test  <- BreastCancer2[-trainIndex, -1]
+
+model_BC = train(
+  form = Class ~ .,
+  data = Train,
+  method = "knn")
+```
+
+---
+
+
+```{r}
+model_BC
+```
+
+---
+
+
+```{r}
+plot(model_BC)
+```
+
+---
+
+## Extending our grid
+
+The `train()` function we used previously selected the best $k$ based on accuracy. However, it only tried three values of $k$! We can try more and see what happens.
+
+```{r}
+# Which values of k should we try? Store them in a data frame.
+k <- data.frame(k = 5:50)
+
+model_BC = train(
+  form = Class ~ .,
+  data = Train,
+  method = "knn",
+  tuneGrid = k) #<<
+```
+
+- The more values in your `tuneGrid`, the longer this will take.
+
+---
+
+What $k$ will we choose?
+
+```{r}
+plot(model_BC)
+```
+
+---
+
+How are uniformity of cell size and cell shape related to whether or not a cell is from a malignant tumor?
+
+```{r}
+BreastCancer2 %>% ggplot(aes(x=Cell.size, y=Cell.shape)) + 
+  geom_jitter(aes(col=Class, pch=Class), width=0.1, height=0.1)
+```
+
+---
+
+What does the decision boundary look like on the testing data?
+
+```{r, echo=FALSE}
+Grid <- expand.grid(Cell.size = 1:10, Cell.shape = 1:10)
+
+# All other predictors set to their mean
+Grid <- Grid %>% mutate(Cl.thickness = mean(BreastCancer2$Cl.thickness),
+                        Marg.adhesion = mean(BreastCancer2$Marg.adhesion),
+                        Epith.c.size = mean(BreastCancer2$Epith.c.size),
+                        Bare.nuclei = mean(BreastCancer2$Bare.nuclei),
+                        Bl.cromatin = mean(BreastCancer2$Bl.cromatin),
+                        Normal.nucleoli = mean(BreastCancer2$Normal.nucleoli),
+                        Mitoses = mean(BreastCancer2$Mitoses))
+
+predictions <- predict(model_BC, Grid)  #<<
+
+p0 <- Grid %>% mutate(pred=predictions) %>%
+  ggplot(aes(x = Cell.size, y = Cell.shape,
+                     color = pred)) +
+  geom_tile(aes(fill = pred), alpha=0.2) + 
+  geom_jitter(data=Test, aes(x=Cell.size, 
+                            y=Cell.shape, col=Class),
+              width=0.1, height=0.1) + 
+  labs(title='k-Nearest Neighbors ("optimal" k, Euclidean distance)',
+       subtitle='All other predictors at mean value')
+
+p0
+```
+
+---
+
+What does the decision boundary look like on the testing data?
+
+```{r, echo=FALSE}
+Grid <- expand.grid(Cell.size = 1:10, Cell.shape = 1:10)
+
+# All other predictors set to their min
+Grid <- Grid %>% mutate(Cl.thickness = min(BreastCancer2$Cl.thickness),
+                        Marg.adhesion = min(BreastCancer2$Marg.adhesion),
+                        Epith.c.size = min(BreastCancer2$Epith.c.size),
+                        Bare.nuclei = min(BreastCancer2$Bare.nuclei),
+                        Bl.cromatin = min(BreastCancer2$Bl.cromatin),
+                        Normal.nucleoli = min(BreastCancer2$Normal.nucleoli),
+                        Mitoses = min(BreastCancer2$Mitoses))
+
+predictions <- predict(model_BC, Grid)  #<<
+
+Grid %>% mutate(pred=predictions) %>%
+  ggplot(aes(x = Cell.size, y = Cell.shape,
+                     color = pred)) +
+  geom_tile(aes(fill = pred), alpha=0.2) + 
+  geom_jitter(data=Test, aes(x=Cell.size, 
+                            y=Cell.shape, col=Class),
+              width=0.1, height=0.1) + 
+  labs(title='k-Nearest Neighbors ("optimal" k, Euclidean distance)',
+       subtitle='All other predictors at min value')
+```
+
+---
+
+What does the decision boundary look like on the testing data?
+
+```{r, echo=FALSE}
+library(gridExtra)
+
+p0 <- p0 +   labs(title='k-Nearest Neighbors',
+       subtitle='All others @ mean')
+
+Grid <- expand.grid(Cell.size = 1:10, Cell.shape = 1:10)
+
+# All other predictors set to their min
+Grid <- Grid %>% mutate(Cl.thickness = quantile(BreastCancer2$Cl.thickness, 0.1),
+                        Marg.adhesion = quantile(BreastCancer2$Marg.adhesion, 0.1),
+                        Epith.c.size = quantile(BreastCancer2$Epith.c.size, 0.1),
+                        Bare.nuclei = quantile(BreastCancer2$Bare.nuclei, 0.1),
+                        Bl.cromatin = quantile(BreastCancer2$Bl.cromatin, 0.1),
+                        Normal.nucleoli = quantile(BreastCancer2$Normal.nucleoli, 0.1),
+                        Mitoses = quantile(BreastCancer2$Mitoses, 0.1))
+
+predictions <- predict(model_BC, Grid)  #<<
+
+p1 <- Grid %>% mutate(pred=predictions) %>%
+  ggplot(aes(x = Cell.size, y = Cell.shape)) +
+  geom_tile(aes(fill = pred), alpha=0.2) + 
+  geom_jitter(data=Test, aes(x=Cell.size, 
+                            y=Cell.shape, col=Class),
+              width=0.1, height=0.1) + 
+  labs(title='k-Nearest Neighbors',
+       subtitle='All others @ 10-th percentile')
+
+# All other predictors set to their first quartile
+Grid <- Grid %>% mutate(Cl.thickness = quantile(BreastCancer2$Cl.thickness, 0.25),
+                        Marg.adhesion = quantile(BreastCancer2$Marg.adhesion, 0.25),
+                        Epith.c.size = quantile(BreastCancer2$Epith.c.size, 0.25),
+                        Bare.nuclei = quantile(BreastCancer2$Bare.nuclei, 0.25),
+                        Bl.cromatin = quantile(BreastCancer2$Bl.cromatin, 0.25),
+                        Normal.nucleoli = quantile(BreastCancer2$Normal.nucleoli, 0.25),
+                        Mitoses = quantile(BreastCancer2$Mitoses, 0.25))
+
+predictions <- predict(model_BC, Grid)  #<<
+
+p2 <- Grid %>% mutate(pred=predictions) %>%
+  ggplot(aes(x = Cell.size, y = Cell.shape)) +
+  geom_tile(aes(fill = pred), alpha=0.2) + 
+  geom_jitter(data=Test, aes(x=Cell.size, 
+                            y=Cell.shape, col=Class),
+              width=0.1, height=0.1) + 
+  labs(title='k-Nearest Neighbors',
+       subtitle='All others @ 25-th percentile')
+
+# All other predictors set to their median quartile
+Grid <- Grid %>% mutate(Cl.thickness = quantile(BreastCancer2$Cl.thickness, 0.5),
+                        Marg.adhesion = quantile(BreastCancer2$Marg.adhesion, 0.5),
+                        Epith.c.size = quantile(BreastCancer2$Epith.c.size, 0.5),
+                        Bare.nuclei = quantile(BreastCancer2$Bare.nuclei, 0.5),
+                        Bl.cromatin = quantile(BreastCancer2$Bl.cromatin, 0.5),
+                        Normal.nucleoli = quantile(BreastCancer2$Normal.nucleoli, 0.5),
+                        Mitoses = quantile(BreastCancer2$Mitoses, 0.5))
+
+predictions <- predict(model_BC, Grid)  #<<
+
+p3 <- Grid %>% mutate(pred=predictions) %>%
+  ggplot(aes(x = Cell.size, y = Cell.shape)) +
+  geom_tile(aes(fill = pred), alpha=0.2) + 
+  geom_jitter(data=Test, aes(x=Cell.size, 
+                            y=Cell.shape, col=Class),
+              width=0.1, height=0.1) + 
+  labs(title='k-Nearest Neighbors',
+       subtitle='All others @ 50-th percentile')
+
+Grid <- Grid %>% mutate(Cl.thickness = quantile(BreastCancer2$Cl.thickness, 0.75),
+                        Marg.adhesion = quantile(BreastCancer2$Marg.adhesion, 0.75),
+                        Epith.c.size = quantile(BreastCancer2$Epith.c.size, 0.75),
+                        Bare.nuclei = quantile(BreastCancer2$Bare.nuclei, 0.75),
+                        Bl.cromatin = quantile(BreastCancer2$Bl.cromatin, 0.75),
+                        Normal.nucleoli = quantile(BreastCancer2$Normal.nucleoli, 0.75),
+                        Mitoses = quantile(BreastCancer2$Mitoses, 0.75))
+
+predictions <- predict(model_BC, Grid)  #<<
+
+p4 <- Grid %>% mutate(pred=predictions) %>%
+  ggplot(aes(x = Cell.size, y = Cell.shape)) +
+  geom_tile(aes(fill = pred), alpha=0.2) + 
+  geom_jitter(data=Test, aes(x=Cell.size, 
+                            y=Cell.shape, col=Class),
+              width=0.1, height=0.1) + 
+  labs(title='k-Nearest Neighbors',
+       subtitle='All others @ 75-th percentile')
+
+# All other predictors set to their third quartile
+Grid <- Grid %>% mutate(Cl.thickness = quantile(BreastCancer2$Cl.thickness, 0.9),
+                        Marg.adhesion = quantile(BreastCancer2$Marg.adhesion, 0.9),
+                        Epith.c.size = quantile(BreastCancer2$Epith.c.size, 0.9),
+                        Bare.nuclei = quantile(BreastCancer2$Bare.nuclei, 0.9),
+                        Bl.cromatin = quantile(BreastCancer2$Bl.cromatin, 0.9),
+                        Normal.nucleoli = quantile(BreastCancer2$Normal.nucleoli, 0.9),
+                        Mitoses = quantile(BreastCancer2$Mitoses, 0.9))
+
+predictions <- predict(model_BC, Grid)  #<<
+
+p5 <- Grid %>% mutate(pred=predictions) %>%
+  ggplot(aes(x = Cell.size, y = Cell.shape)) +
+  geom_tile(aes(fill = pred), alpha=0.2) + 
+  geom_jitter(data=Test, aes(x=Cell.size, 
+                            y=Cell.shape, col=Class),
+              width=0.10, height=0.10) + 
+  labs(title='k-Nearest Neighbors',
+       subtitle='All others @ 90-th percentile')
+
+grid.arrange(p0, p1, p2, p3, p4, p5, nrow=2)
+```
+
+---
+
+## ROC curve
+
+__Receiver operating characteristics (ROC) curve__: a plot summarizing the performance of a classifier on a training data set
+
+- _Area under the curve_ summarizes overall performance of a classifier
+- An _ideal_ ROC curve will "hug" the top left corner
+
+---
+
+
+In `caret`, the function `twoClassSummary` computes the area under the ROC curve and the specificity and sensitivity under the 50% cutoff.
+
+In order to do this, we need to find the predicted _probabilities_ of membership in each class.
+
+```{r}
+predict(model_BC, Test, type='prob')
+```
+
+---
+
+
+The "ideal" value of ROC is 1. How'd we do?
+
+```{r}
+Results <- data.frame(obs = Test$Class,
+                  pred = predict(model_BC, Test),
+                  benign = predict(model_BC, Test, type='prob')[,1],
+                  malignant = 1 - predict(model_BC, Test, type='prob')[,1])
+
+twoClassSummary(Results, lev=levels(Test$Class))
+```
+
+---
+
+
+## ROC curves: `ROCR`
+
+ROC curves are not included in `caret`, but we can create them using the `ROCR` package. These are useful for evaluating and comparing classification models of any kind (not just k-nearest neighbors).
+
+```{r}
+# install.packages('ROCR')
+library(ROCR)
+```
+
+---
+
+
+```{r}
+Results2 <- Results %>% mutate(obs_01 = ifelse(obs == 'benign', 
+                                               1,  0))
+
+pred <- prediction(Results2$benign, Results2$obs_01)
+perf <- performance(pred, 'tpr', 'fpr')
+plot(perf, colorize=TRUE)
+```
+
+---
+
+## Sensitivity and specificity
+
+__Sensitivity__: true positive rate
+
+- Proportion of actual "successes" that are classified as "successes"
+
+__Specificity__: true negative rate
+
+- Proportion of actual "failures" that are classified as "successes"
+- False positive rate = 1 - Specificity
+
+---
+
+```{r}
+twoClassSummary(Results, lev=levels(Test$Class))
+Results %>% group_by(pred, obs) %>% summarize(n=n())
+```
+
+---
+
+```{r}
+Results %>% ggplot(aes(x=obs)) + 
+  geom_bar(aes(fill=pred)) + 
+  facet_wrap(~pred, scales='free')
+```
+
+---
+
+# Selecting "optimal" k
+
+```{r}
+plot(model_BC)
+```
+
+---
+
+Depending on the metric used, the optimal $K$ may change.
+
+```{r}
+plot(model_BC, metric='Kappa')
+```
+
+---
+
+`metric`: What measure of performance to plot. Examples of possible values are "RMSE", "Rsquared", "Accuracy" or "Kappa". Other values can be used depending on what metrics have been calculated.
+
+```{r, error=TRUE}
+plot(model_BC, metric='RMSE')
+```
+
+--
+
+- What does this error indicate?
+
+---
+
+## knn with Minkowski distance
+
+Changing the method argument to "kknn" implements $k$-nearest neighbors using Minkowski distance:
+
+```{r}
+model_kknn = train(
+  form = Class ~ .,
+  data = Train,
+  method = "kknn") #<<
+```
+
+---
+
+## Deciphering parameters
+
+How do we figure out what each of these parameters represents?
+
+```{r}
+model_kknn
+```
+
+---
+
+## Minkowski distance parameters
+
+`kknn::kknn`: " Performs k-nearest neighbor classification of a test set using a training set. For each row of the test set, the k nearest training set vectors (according to Minkowski distance) are found, and the classification is done via the maximum of summed kernel densities. In addition even ordinal and continuous variables can be predicted."
+
+- `distance`: "parameter of Minkowski distance", $p$
+- `kmax`: largest number of neighbors to be considered
+- `kernel`: "... it uses kernel functions to weight the neighbors according to their distances. In fact, not only kernel functions but every monotonic decreasing function f(x) for all x>0 will work fine."
+
+---
+
+## Kernel functions
+
+Let $X$ be a non-empty set, sometimes called the _index set_. A symmetric function $K: X \times X \rightarrow \mathbb{R}$ is called a __positive definite__ kernel on $X$ if:
+
+$$\sum_{i=1}^n \sum_{j=1}^n c_i c_j K(x_i, x_j) \ge 0$$
+
+holds for any $n \in \mathbb{N}$, $x_1, ... ,x_n \in X$, and $c_1, ..., c_n \in \mathbb{R}$.
+
+--
+
+- In words: .blue[kernel functions are measures of the similarity between two observations]
+
+- We'll come back to these more after we review some matrix rules - kernel functions are especially useful for building __support vector machines__.
+
+---
+
+## Kernel functions
+
+There are lots of possible kernel functions used in machine learning.Let $x$ and $y$ represent $p$-dimensional vectors - $x, y \in \mathbb{R}^p$:
+
+- Linear kernel:
+
+$$K(x, y) = x^T y \ x, y \in \mathbb{R}^p$$
+
+- Polynomial kernel:
+
+$$K(x, y) = (x^T y + r)^n \ x, y \in \mathbb{R}^p, r\ge 0$$
+
+- Gaussian kernel:
+
+$$K(x, y) = exp\left[-\frac{||x-y||^{2}}{2\sigma^{2}}\right] \ x, y \in \mathbb{R}^p$$
+
+- Exponential kernel:
+
+$$K(x, y) = exp\left[-\alpha ||x-y||\right] \ x, y \in \mathbb{R}^p$$
+
+---
+
+## Kernels for k-nearest neighbors
+
+In `kknn::kknn`:
+
+- `rectangular`: Euclidean, "right-angle", distance
+- `optimal`: this is the default used by `kknn`
+- `gaussian`: Gaussian kernel
+
+---
+
+Let's try modifying these parameters and see what happens:
+
+```{r, error=TRUE}
+k <- data.frame(k = 5:50)
+
+model_kknn <- train(
+  form = Class ~ .,
+  data = Train,
+  method = "kknn", 
+  tuneGrid = k) #<<
+```
+
+> Error: The tuning parameter grid should .blue[not] have columns kmax, distance, kernel
+
+--
+
+- This is a typo.
+
+---
+
+Okay, so set up a new tuning grid:
+
+```{r}
+kmax <- 5:10
+distance <- 1:4
+kernel <- c('optimal', 'rectangular')
+
+tuningGrid <- expand.grid(kmax, distance, kernel)
+nrow(tuningGrid)
+head(tuningGrid)
+```
+
+---
+
+```{r, cache=TRUE}
+colnames(tuningGrid) <- c('kmax', 'distance', 'kernel')
+
+start <-  Sys.time()
+
+model_kknn <- train(
+  form = Class ~ .,
+  data = Train,
+  method = "kknn", 
+  tuneGrid = tuningGrid) #<<
+
+Sys.time() - start
+```
+
+---
+
+```{r}
+plot(model_kknn)
+```
+
+---
+
+## Caching in RMarkdown
+
+This won't be the first time something takes a while in machine learning. 
+
+.__Caching__: caching refers to running code, just once, and saving the results for later
+
+- In RMarkdown, adding `cache=TRUE` in the "declaration" of your code chunk willl evaluate the code the first time the document is knit, and save the results in an .rdb file
+
+- The next time the document is knit, instead of re-running the code, the previous results will be loaded
+
+- Any changes to your code chunk will result in re-caching on the next run

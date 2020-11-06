@@ -1,0 +1,423 @@
+---
+title: 'Week 4: Cross-Validation'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "MTH 366: Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=TRUE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+## Resampling methods
+
+__Resampling methods__: repeatedly drawing samples from a training data set and refitting a model of interest on each sample
+
+We _resample_ to get additional information about the fitted model:
+
+- Variability of the estimates
+- Sensitivity of the estimates to "extreme values"
+- Sensitivity of the predictions to the estimates
+
+---
+
+## Resampling methods
+
+__Resampling methods__: repeatedly drawing samples from a training data set and refitting a model of interest on each sample
+
+We _resample_ to get additional information about the fitted model:
+
+- Variability of the estimates
+- Sensitivity of the estimates to "extreme values"
+- Sensitivity of the predictions to the estimates
+
+<br>
+
+.full-width[.content-box-purple[You may not have realized it, but we're already using resampling.
+
+---
+
+## Example: WI breast cancer
+
+The `BreastCancer` data set from the `mlbench` library contains a landmark data set from the University of Wisconsin Madison Hospital. Researchers wanted to classify samples as either benign or malignant tumors.
+
+```{r}
+library(tidyverse)
+library(caret)
+
+library(mlbench)
+data(BreastCancer)
+nrow(BreastCancer)
+
+head(BreastCancer)
+```
+
+---
+
+```{r}
+BreastCancer2 <- BreastCancer[complete.cases(BreastCancer),] 
+nrow(BreastCancer2)
+
+# Classify variables as numeric
+for(i in 2:10){
+    BreastCancer2[,i] <- as.numeric(BreastCancer2[,i])
+}
+
+trainIndex <- createDataPartition(BreastCancer2$Class, 
+                                          p=0.75, 
+                                          list=FALSE, 
+                                          times=1)
+
+# Remove the Id column
+Train <- BreastCancer2[trainIndex, -1]
+Test  <- BreastCancer2[-trainIndex, -1]
+
+# Build a naive Bayes model
+model_NB = train(
+  form = Class ~ .,
+  data = Train,
+  method = "naive_bayes")
+```
+
+---
+
+```{r}
+model_NB
+```
+
+---
+
+## Cross-validation
+
+This example uses two cross-validation techniques:
+
+1. Creating testing and training "validation sets" using the __hold out method__ is the simplest cross-validation approach
+2. By default, `caret` uses the __bootstrap__ to fine tune estimates
+
+There many other cross-validation techniques we can use in machine learning.
+
+---
+
+## Hold out method
+
+__Hold out method__: "hold out" a portion of your data to __test__ the model on, after __training__ the algorithm on another portion of the data
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_test_training.png")
+```
+
+- The percentages used are arbitrary at best. Common splits are 50-50%, 75-25%, and 80-20%.
+
+---
+
+## Hold out method
+
+Pros: 
+
+- Can select size of the testing v. training data set
+- Conceptually simple
+- Easy to implement (especially if we use unbalanced sampling)
+
+
+Cons: 
+
+- Have to choose the size of the testing v. training data set
+- Each split will result in a slightly different sample, with slightly different performance metrics
+- Only a subset of the observations are used to fit the data (possible loss of information, overestimation of error)
+
+---
+
+## Example: Breast cancer data
+
+```{r, cache=TRUE}
+start <- Sys.time()
+N <- 50
+Accuracy <- vector(length=N)
+Kernel <- vector(length=N)
+
+trainIndex_i <- createDataPartition(BreastCancer2$Class, 
+                                    p=0.75, list=FALSE, times=N)
+
+for(i in 1:N){
+  Train_i <- BreastCancer2[trainIndex_i[,i], -1]
+  Test_i  <- BreastCancer2[-trainIndex_i[,i], -1]
+
+  model_NB_i <- train(form = Class ~ ., data = Train_i, 
+                      method = "naive_bayes")
+  
+  Accuracy[i] <- max(model_NB_i$results[,4])
+  Kernel[i] <- model_NB_i$bestTune[,2]
+}
+Sys.time() - start
+```
+
+---
+
+## Example: Breast cancer data
+
+```{r, echo=FALSE}
+library(gridExtra)
+results <- tibble(Accuracy = Accuracy, Kernel = Kernel)
+p1 <- results %>% ggplot(aes(x=Accuracy)) + geom_histogram(fill='#6ecadc')
+p2 <- results %>% ggplot(aes(x=Kernel)) + geom_bar(fill='#e9a820')
+
+grid.arrange(p1, p2, nrow=1)
+```
+
+---
+
+## Leave-one out cross-validation
+
+__Leave-one-out cross-validation__: a single observation is held out at a time for prediction and cross validation
+
+- We fit our machine learning algorithm to $n-1$ data points
+- Make a prediction for the "left out" 1 data point
+- Repeat until all data points have been "left out" and tested
+
+---
+
+## Leave-one out cross-validation
+
+The estimated cross-validation error is the average of the $n$ test error estimates:
+
+$$CV_{(n)} = \frac{1}{n} \sum_{i=1}^n Error_i$$
+
+- In a classification scenario, how should we measure the error?
+
+---
+
+## Example: Breast cancer data
+
+```{r, cache=TRUE}
+start <- Sys.time()
+
+N <- nrow(BreastCancer2)
+pred <- vector(length=N)
+prob <- vector(length=N)
+
+for(i in 1:N){
+  Train_i <- BreastCancer2[-i, -1]
+  Test_i  <- BreastCancer2[i, -1]
+
+  model_NB_i <- train(form = Class ~ ., data = Train_i, 
+                      method = "naive_bayes")
+  
+  pred[i] <- predict(model_NB_i, Test_i, type='raw')[1]
+  prob[i] <- predict(model_NB_i, Test_i, type='prob')[1]
+}
+Sys.time() - start
+```
+
+---
+
+## Example: Breast cancer data
+
+```{r}
+pred2 <- as.factor(ifelse(pred==1, 'benign', 'malignant'))
+confusionMatrix(data = pred2, reference = BreastCancer2$Class)
+```
+
+---
+class: Rcode
+
+An easier way to do cross-validation is to use the `caret::trainControl` function.
+
+- To do leave-one out cross-validation, use `method='LOOCV'`:
+
+```{r}
+fitControl <- trainControl(method='LOOCV')
+```
+
+- To use other methods, we'll need to specify more options:
+
+```{r, eval=FALSE}
+fitControl <- trainControl(## 10-fold CV
+                           method = "repeatedcv",
+                           number = 10,
+                           ## repeated ten times
+                           repeats = 10)
+```
+
+---
+
+## `caret::trainControl`
+
+Implemented cross-validation options include:
+
+- "boot"
+- "cv"
+- "LOOCV" (leave one-out cross validation)
+- "LGOCV"
+- "repeatedcv"
+- "timeslice"
+- "none" 
+- "oob" ("out of bag", can only be used by random forest, bagged trees, etc.)
+
+Is this any faster than coding by hand was?
+
+---
+
+## leave-one out in `trainControl`
+
+```{r, cache=TRUE}
+start <- Sys.time()
+model_NB_LOOCV <- train(form = Class ~ ., 
+                    data = BreastCancer2, 
+                    trControl = fitControl,
+                    method = "naive_bayes")
+Sys.time() - start
+```
+
+---
+
+## k-fold cross validation
+
+For large data sets, leave-one out cross validation is time prohibitive.
+
+__k-fold cross validation__: divide the set of observations into k groups, or folds, of equal size, and select each fold for the testing data per iteration
+
+- $k$-fold cross validation is an "in-between" approach: not as slow as leave-one out, and more "consistent" than the hold out method
+
+---
+
+## k-fold cross validation
+
+- In practice, $k=5$ and $k=10$ are popular choices
+
+```{r, out.width = "400px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_kfold.jpg")
+```
+
+---
+
+## k-fold in `trainControl`
+
+Use k-fold cross validation with k=10:
+
+```{r, cache=TRUE}
+fitControl_k10 <- trainControl(## 10-fold CV
+                           method = "cv",
+                           number = 10)
+
+start <- Sys.time()
+model_NB_k10 <- train(form = Class ~ ., 
+                    data = BreastCancer2, 
+                    trControl = fitControl_k10,
+                    method = "naive_bayes")
+Sys.time() - start
+```
+
+---
+
+## k-fold cross validation
+
+k-fold cross validation has an _obvious_ computational advantage! 
+
+A less obvious, but more important advantage has to do with the test error rate: __k-fold cross validation often gives more accurate estimates of the test terror rate than leave-one out__! Why?
+
+---
+
+## Bias-variance trade-off
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img_bias_variance.png")
+```
+
+- Empirical studies have shown that $k \in [5, 10]$ is a good balance
+
+---
+
+## Bootstrap
+
+__Bootstrap__: randomly select n observations from the original data set, _with replacement_, to crease a new bootstrap sample
+
+- `caret::train()` uses bootstrapping to optimize its parameter estimates by default
+
+---
+
+## No cross-validation?
+
+If we want to implement no cross validation, we can use `caret::trainControl()` to accomplish this.
+
+```{r, error=TRUE}
+fitControl_none <- trainControl(method='none')
+
+model_NB_none <- train(form = Class ~ ., 
+                    data = Train, 
+                    trControl = fitControl_none,
+                    method = "naive_bayes")
+```
+
+---
+
+## Best practices?
+
+In practice, many data scientists opt for using some combination of the cross validation techniques:
+
+1. Hold out some data for _testing_
+2. Use k-fold cross validation on the _training_ data
+
+This allows for unbiased predictions on the testing data, while minimizing errors using k-fold cross validation.
+
+---
+class: Rcode
+
+If you're using RMarkdown to complete homework assignments and run into code that takes a long time to execute, try this chunk option:
+
+```{r, eval=FALSE}
+{r, cache=TRUE}
+```
+
+> When the cache is turned on, knitr will skip the execution of this code chunk if it has been executed before and nothing in the code chunk has changed since then. When you modify the code chunk (e.g., revise the code or the chunk options), the previous cache will be automatically invalidated, and knitr will cache the chunk again.
+

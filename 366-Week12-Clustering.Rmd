@@ -1,0 +1,632 @@
+---
+title: 'Week 12: Clustering'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "MTH 366: Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=FALSE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+## Clustering
+
+__Clustering__: a set of techniques for finding subgroups, or clusters, in a data set
+
+--
+
+- Clustering is like a classification problem, just without the "right" classes.
+
+--
+
+- To cluster, we need to have an idea of what makes the observations "similar", and what makes them "different".
+
+--
+
+- We also need a way to decide _how many_ clusters there should be.
+
+---
+
+## Clustering v. PCA
+
+Both clustering and PCA attempt to simplify the data. The difference is _what_ about the data is being simplified.
+
+- PCA attempts to find a low-dimensional representation that explains most of the variance. In other words, _PCA simplifies across the variables (columns)_.
+
+- Clustering attempts to find similar subgroups among the observations. In other words, _clustering simplifies across the observations (rows)_.
+
+--
+
+The two-best known approaches for clustering are $K$-means clustering and hierarchical clustering.
+
+---
+
+## K-means clustering
+
+__K-means clustering__: partition a data set into a pre-specified number of K distinct clusters
+
+--
+
+We need a way to decide:
+
+1. How many clusters
+2. Where to "place" the clusters
+
+--
+
+_Sometimes clustering doesn't work the way we might think..._
+
+---
+
+__Example__: Consider a "toy" data set from the `mlbench` library. What would clustering look like on "the smiley"?
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(mlbench)
+
+smiley <- as.data.frame(mlbench.smiley(n=500, sd1 = 0.2, sd2 = 0.2)$x)
+colnames(smiley) <- c('x1', 'x2')
+
+smiley %>% ggplot(aes(x=x1, y=x2)) + geom_point()
+```
+
+---
+
+```{r, echo=FALSE, fig.height=8}
+library(patchwork)
+
+p1 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=2)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=2')
+
+p2 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=3)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=3')
+
+p3 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=4)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=4')
+
+p4 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=5)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=5')
+
+p5 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=6)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=6')
+
+p6 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=7)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=7')
+
+patchwork <- (p1 | p2 | p3) / (p4 | p5 | p6)
+
+patchwork + plot_annotation(
+  title = 'K-means clustering (default options)'
+)
+```
+
+---
+
+## K-means clustering algorithm
+
+Let $C_1, ..., C_K$ denote sets containing the indices of the observations in each cluster.
+
+1. $C_1 \cup C_2 \cup ... \cup C_K = \{1, 2, ...., n\}$. In other words, each observation belongs to at least one of the $K$ clusters.
+
+2. $C_k \cap C_{k'} = \emptyset$ for all $k \ne k'$. In other words, the clusters are non-overlapping. 
+
+--
+
+A "good" clustering is one for which the points inside the cluster are as similar as possible. 
+
+- Minimize the _variation within each cluster_.
+
+---
+
+## Within cluster variation
+
+Our "optimal" clustering will minimize:
+
+$$\sum_{k=1}^K W(C_k)$$
+
+where $W(C_k)$ is a measure of the amount the observations within each cluster differ.
+
+--
+
+How to define $W(C_k)$?
+
+- One option: Euclidean distance
+
+$$W(C_k) = \frac{1}{\vert C_k \vert} \sum_{i, i' \in C_k} \sum_{j=1}^p (x_{ij} - x_{i'j})^2$$
+
+---
+
+## K-means clustering algorithm
+
+1. Randomly assign a number, from 1 to $K$, to each of the observations. These are the initial cluster assignments.
+
+2. Iterate until the cluster assignments are _stable_ (stop changing):
+
+    a) For each of the $K$ clusters, compute the cluster centroid. The $k^{th}$ cluster centroid is the vector of the $p$ feature means for the observations in the $k^{th}$ cluster.
+    
+    b) Assign each observation to the cluster whose centroid is closest.
+    
+--
+
+$K$-means clustering finds a _local_ solution rather than a global solution, so the results may change depending on the initial random cluster assignment.
+
+---
+
+```{r, echo=FALSE, fig.height=8}
+p1 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=2)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=2')
+
+p2 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=3)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=3')
+
+p3 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=4)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=4')
+
+p4 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=5)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=5')
+
+p5 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=6)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=6')
+
+p6 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=7)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=7')
+
+patchwork <- (p1 | p2 | p3) / (p4 | p5 | p6)
+
+patchwork + plot_annotation(
+  title = 'Clustering on the smiley: run 1'
+)
+```
+
+---
+
+
+```{r, echo=FALSE, fig.height=8}
+p1 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=2)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=2')
+
+p2 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=3)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=3')
+
+p3 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=4)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=4')
+
+p4 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=5)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=5')
+
+p5 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=6)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=6')
+
+p6 <- smiley %>% mutate(pred = as.factor(kmeans(smiley, centers=7)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=7')
+
+patchwork <- (p1 | p2 | p3) / (p4 | p5 | p6)
+
+patchwork + plot_annotation(
+  title = 'Clustering on the smiley: run 2'
+)
+```
+
+---
+
+```{r, echo=FALSE, fig.height=8}
+set.seed(366)
+spiral <- as.data.frame(mlbench.spirals(n=500, cycles=3, sd=0.05)$x)
+colnames(spiral) <- c('x1', 'x2')
+
+p1 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=2)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=2')
+
+p2 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=3)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=3')
+
+p3 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=4)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=4')
+
+p4 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=5)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=5')
+
+p5 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=6)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=6')
+
+p6 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=7)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=7')
+
+patchwork <- (p1 | p2 | p3) / (p4 | p5 | p6)
+
+patchwork + plot_annotation(
+  title = 'Clustering on the spiral: run 1'
+)
+```
+
+---
+
+```{r, echo=FALSE, fig.height=8}
+p1 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=2)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=2')
+
+p2 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=3)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=3')
+
+p3 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=4)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=4')
+
+p4 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=5)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=5')
+
+p5 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=6)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=6')
+
+p6 <- spiral %>% mutate(pred = as.factor(kmeans(spiral, centers=7)$cluster)) %>%
+  ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=pred)) + labs(title='K=7')
+
+patchwork <- (p1 | p2 | p3) / (p4 | p5 | p6)
+
+patchwork + plot_annotation(
+  title = 'Clustering on the spiral: run 2'
+)
+```
+
+---
+
+## Example: College enrollment data
+
+The data set `College` in the ISLR library contains data for 777 colleges and universities featured in US News and World Report.
+
+```{r}
+library(ISLR)
+data(College)
+names(College)
+```
+
+Which colleges are similar?
+
+- Split into public v. private (for more easily visible data sets)
+
+---
+
+Create a public data set and a private data set.
+
+- Use base notation to avoid dropping row names.
+
+```{r}
+Public <- College %>% filter(Private == 'No') %>% select(-Private)
+rownames(Public) <- rownames(College[College$Private=='No', ])
+
+Private <- College %>% filter(Private == 'Yes') %>% select(-Private)
+rownames(Private) <- rownames(College[College$Private=='Yes', ])
+```
+
+---
+class: Rcode
+
+Fit a k-means clustering model to the public colleges and universities.
+
+```{r}
+kmeans_public <- kmeans(Public, centers=4)
+names(kmeans_public)
+
+kmeans_public$cluster
+```
+
+---
+
+```{r}
+library(factoextra)
+fviz_cluster(list(data=Public, 
+                  cluster=kmeans_public$cluster))
+```
+
+---
+
+```{r}
+kmeans_public7 <- kmeans(Public, centers=7)
+
+fviz_cluster(list(data=Public, 
+                  cluster=kmeans_public7$cluster))
+```
+
+---
+
+```{r}
+fviz_cluster(list(data=Public, 
+                  cluster=kmeans_public7$cluster)) + 
+  facet_wrap(~cluster, scales='free') + guides(col=FALSE, fill=FALSE, pch=FALSE)
+```
+
+---
+
+For private colleges:
+
+```{r}
+kmeans_private <- kmeans(Private, centers=4)
+
+fviz_cluster(list(data=Private, 
+                  cluster=kmeans_private$cluster))
+```
+
+---
+
+## Hierarchical clustering
+
+__Hierarchical clustering__: observations are combined using a pairwise approach
+
+- Hierarchical clustering does not require a pre-specified $K$
+
+- Clusters are built using a _dendrogram_, or tree diagram
+
+---
+
+## Example: Smiley data
+
+Start with a subset of observations so we can see the dendrogram:
+
+```{r}
+dist <- dist(smiley[1:50,], method='euclidean')
+h_clusters <- hclust(dist)
+
+plot(h_clusters, cex=0.5)
+```
+
+---
+
+```{r}
+plot(h_clusters, cex=0.5)
+rect.hclust(h_clusters, k=3, border=2:4)
+```
+
+---
+
+```{r}
+plot(h_clusters, cex=0.5)
+rect.hclust(h_clusters, k=4, border=2:5)
+```
+
+---
+
+```{r}
+plot(h_clusters, cex=0.5)
+rect.hclust(h_clusters, k=7, border=2:8)
+```
+
+---
+
+```{r}
+clusters <- cutree(h_clusters, k=4)
+
+smiley[1:50,] %>% mutate(cluster = clusters) %>%
+  ggplot(aes(x=x1, y=x2)) + 
+  geom_point(aes(col=as.factor(cluster)))
+  
+```
+
+---
+
+```{r}
+fviz_cluster(list(data=smiley[1:50,], cluster=clusters))
+```
+
+---
+
+```{r}
+dist_all <- dist(smiley, method='euclidean')
+h_clusters_all <- hclust(dist_all)
+
+clus_all <- cutree(h_clusters_all, k=4)
+fviz_cluster(list(data=smiley, cluster=clus_all))
+```
+
+---
+
+## Hierarchical clustering
+
+1. Begin with $n$ observations and some measure (like Euclidean distance) of the ${n \choose 2}$ pairwise _dis_-similarities. Treat each observation like its own cluster.
+
+2. For $i = n, n-1, ..., 2$:
+
+    a) Examine all pairwise inter-cluster dissimilarities among the $i$ clusters and identify the pair of clusters that are least dissimiliar (that is, most similiar). Fuse these two clusters. The dissimiliarity between these two clusters indicates the height in the dendrogram at which the fusion should be placed.
+    
+    b) Compute the new pairwise inter-cluster dissimiliarites among the $i-1$ remaining clusters.
+    
+---
+
+## Linkage methods
+
+How do we define the dissimilarity between two clusters, once they have multiple observations?
+
+__Linkage__: definition of the dissimilarity between two groups of observations
+
+1. _Complete_: use maximum dissimilarity between all observations in cluster A and all observations in cluster B
+2. _Single_: use minimum dissimilarity between all observations in cluster A and all observations in cluster B
+3. _Average_: use average dissimilarity between all observations in cluster A and all observations in cluster B
+4. _Centroid_: use dissimilarity between centroid of cluster A and centroid of cluster B
+
+---
+
+## Comparing linkage methods
+
+
+How can we compare the clustering result using multiple linkage methods? Using the first 50 observations of the smiley:
+
+```{r}
+hc_complete <- hclust(dist, method = 'complete')
+hc_single <- hclust(dist, method = 'single')
+```
+
+---
+
+```{r}
+plot(hc_complete)
+rect.hclust(hc_complete, k=4, 
+            border=c('red', 'yellow', 'green', 'blue'))
+```
+
+---
+
+```{r}
+plot(hc_single)
+rect.hclust(hc_single, k=4, 
+            border=c('red', 'yellow', 'green', 'blue'))
+```
+
+---
+
+## Entanglement
+
+__Entanglement__: a measure of "agreement" for clustering dendrograms
+
+- $0 \le entanglement \le 1$
+- The lower the entanglement, the better the "alignment" or agreement between the two trees
+
+--
+
+```{r}
+dend1 <- as.dendrogram(hc_complete)
+dend2 <- as.dendrogram(hc_single)
+
+library(dendextend)
+dend_list <- dendlist(dend1, dend2)
+```
+
+---
+
+```{r}
+tanglegram(dend1, dend2,
+           main = paste("entanglement =", 
+                        round(entanglement(dend_list), 2)))
+```
+
+---
+
+## How many clusters?
+
+- `wss` stands for "within sums of squares"
+
+```{r, fig.height=4}
+library(factoextra)
+fviz_nbclust(smiley, FUN=hcut, method='wss', k.max=15)
+```
+
+---
+
+## Example: Public and private colleges
+
+```{r}
+dist_public <- dist(Public, method='euclidean')
+h_clusters_public <- hclust(dist_public)
+
+clus_public <- cutree(h_clusters_public, k=4)
+fviz_cluster(list(data=Public, cluster=clus_public))
+```
+
+---
+
+Can we compare the model produced using hierarchical clustering to the one using k-means clustering with entanglement?
+
+--
+
+```{r, error=TRUE}
+dend1 <- as.dendrogram(h_clusters_public)
+dend2 <- as.dendrogram(kmeans_public)
+```
+
+--
+
+Well then, how can we compare?
+
+1. The cluster numbers aren't always the same (cluster 1 using hierarchical cluster $\ne$ cluster 1 using k-means clustering).
+2. No direct correspondence with the number of observations in each cluster either.
+
+Best bet: visualization.
+
+---
+
+```{r}
+Public <- Public %>% mutate(clusters_kmeans = kmeans_public$cluster,
+                            clusters_hclust = cutree(h_clusters_public, k=4))
+head(Public)
+```
+
+---
+
+```{r}
+Public %>% group_by(clusters_kmeans, clusters_hclust) %>% 
+  summarize(n=n())
+```
+
+---
+
+```{r}
+Public %>% group_by(clusters_kmeans, clusters_hclust) %>% 
+  summarize(n=n()) %>% 
+  ggplot(aes(x=clusters_kmeans, y=clusters_hclust)) + 
+  geom_tile(aes(fill=n))
+```
+
+---
+
+```{r}
+Public %>% 
+  ggplot(aes(x=clusters_kmeans)) + 
+  geom_bar(aes(fill=as.factor(clusters_hclust)))
+```
+
+---
+
+```{r}
+Public %>% 
+  ggplot(aes(x=clusters_kmeans)) + 
+  geom_bar(aes(fill=as.factor(clusters_hclust))) + 
+  labs(x='k-means clusters', fill='Hierarchical clusters')
+```

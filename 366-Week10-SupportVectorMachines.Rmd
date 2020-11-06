@@ -1,0 +1,566 @@
+---
+title: 'Week 10: Support Vector Machines'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "MTH 366: Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=FALSE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+## Support vector machines
+
+Support vector machines, like decision trees, were first introduced in the 1990s. 
+
+Maximal margin classifier $\rightarrow$ support vector classifier $\rightarrow$ support vector machine
+
+--
+
+SVMs are intended for the binary classification setting in which there are _two or more classes_.
+
+- "One v. everything else" classification
+
+---
+
+## Hyperplanes
+
+In the $p$-dimensional space, a __hyperplane__ is a flat subspace of dimension $p-1$. 
+
+- In two dimensions, the hyperplane is a line.
+- In three dimensions, the hyperplane is a plane.
+
+--
+
+In $p$-dimensions:
+
+$$\beta_0 + \beta_1 X_1 + \beta_2 X_2 + ... + \beta_p X_p = 0$$ 
+
+defines a $p$-dimensional hyperplane. If a point $\mathbf{x} = (X_1, X_2, ..., X_p)^T$ satisfies the equation, then $\mathbf{x}$ lies on the hyperplane.
+
+---
+
+## Hyperplanes
+
+What if $\mathbf{x}$ is such that:
+
+$$\beta_0 + \beta_1 X_1 + \beta_2 X_2 + ... + \beta_p X_p > 0$$ 
+
+or: 
+
+$$\beta_0 + \beta_1 X_1 + \beta_2 X_2 + ... + \beta_p X_p < 0$$ 
+
+--
+
+Think of the hyperplane as dividing a $p$-dimensional space into two disjoint pieces. 
+
+---
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(tidyverse)
+ids <- factor(c(0, 1))
+
+values <- data.frame(
+  id = ids,
+  value = c(0, 1)
+)
+
+
+
+positions <- data.frame(
+  id = rep(ids, each=4),
+  x = c(-1.5, -1.5, 1.5, 1.5, -1.5, -1.5, 1.5, 1.5),
+  y = c(1.5, 2/3, -4/3, 1.5, -1.5, 2/3, -4/3, -1.5)
+)
+
+# Currently we need to manually merge the two together
+datapoly <- merge(values, positions, by = c("id"))
+
+ggplot(datapoly, aes(x = x, y = y)) +
+  geom_polygon(aes(fill = as.factor(value), group = id), alpha=0.5) + 
+  guides(fill=FALSE) + scale_fill_manual(values=c('#cbc9e2', '#756bb1')) + 
+  geom_abline(slope = -2/3, intercept=-1/3)
+```
+
+The hyperplane $1 + 2x + 3y = 0$ is plotted above. 
+
+---
+
+## Classification using a hyperplane
+
+Suppose we have an $n \times p$ data matrix $\mathbf{X}$ that consists of $n$ training data points in $p$ dimensional space. 
+
+We'll further assume that observations fall into two classes: $y_1, ..., y_n \in \{ -1, 1\}$
+
+--
+
+- Use $\{-1, 1\}$ instead of $\{0, 1\}$ so we can construct the hyperplane.
+
+--
+
+We'd like to find a __separating hyperplane__ that "splits" the training data into the two classes as efficiently as possible.
+
+---
+
+Where should we "draw" the hyperplane?
+
+```{r, echo=FALSE}
+library(palmerpenguins)
+data(penguins)
+
+penguins <- penguins %>% na.omit
+
+penguins$species2 <- ifelse(penguins$species == 'Chinstrap', 1, -1)
+
+penguins %>% ggplot(aes(x=flipper_length_mm, y=bill_length_mm)) + 
+  geom_point(aes(col=species2)) + labs(x='X1', y='X2', col='Class')
+
+```
+
+---
+
+Where should we "draw" the hyperplane?
+
+```{r, echo=FALSE}
+penguins %>% ggplot(aes(x=flipper_length_mm, y=bill_length_mm)) + 
+  geom_point(aes(col=species2)) + labs(x='X1', y='X2', col='Class') + 
+  geom_abline(intercept=-0.3, slope=5/8, col='purple')
+```
+
+---
+
+Where should we "draw" the hyperplane?
+
+```{r, echo=FALSE}
+penguins %>% ggplot(aes(x=flipper_length_mm, y=bill_length_mm)) + 
+  geom_point(aes(col=species2)) + labs(x='X1', y='X2', col='Class') + 
+  geom_abline(intercept=-0.3, slope=5/8, col='darkgrey') + 
+  geom_abline(intercept=-1.1, slope=0.8, col='red')
+```
+
+---
+
+## Separating hyperplane
+
+A __separating hyperplane__ has the property that:
+
+$$\beta_0 + \beta_1 X_{i1} + \beta_2 X_{i2} + ... + \beta_p X_{ip} > 0$$ 
+
+for all $y_i = 1$ and:
+
+$$\beta_0 + \beta_1 X_{i1} + \beta_2 X_{i2} + ... + \beta_p X_{ip} < 0$$ 
+
+for all $y_i = -1$. 
+
+--
+
+If a separating hyperplane exists, then we assign test observations based on which side of the hypterplane the observation is located.
+
+-- 
+
+- If a separating hyperplane exists, it is usually not unique! Which one should we choose?
+
+---
+
+## Maximal margin classifier
+
+The __maximal margin hyperplane__ is the separating hyperplane that is "farthest" from the training observations. 
+
+- Find the _minimum_ perpendicular distance from each observation to the separating hyperplane, call this the _margin_.
+- Select the hyperplane with the maximum _margin_.
+
+---
+
+## Maximal margin classifier
+
+The maximal margin hyperplane is the solution to the following optimization problem:
+
+Maximize $M$ over $\{\beta_0, \beta_1, \beta_2, ..., \beta_p, M\}$ subject to:
+
+$$\sum_{j=1}^p \beta^2_j = 1$$
+
+$$y_i (\beta_0 + \beta_1 x_{i1} + \beta_2 {i2} + ... + \beta_p {x_ip}) \ge M \forall i = 1, ..., n$$
+
+- This constraint guarantees that all observations will be on the "correct side" of the hyperplane.
+
+- If the first constraint is met, the second gives the perpendicular distance from the $i^{th}$ observation to the hyperplane.
+
+---
+
+Cool! But...
+
+--
+
+What if a separating hyperplane doesn't exist?
+
+```{r, echo=FALSE}
+penguins %>% ggplot(aes(x=flipper_length_mm, y=bill_length_mm)) + 
+  geom_point(aes(col=species2)) + labs(x='X1', y='X2', col='Class') + 
+  geom_abline(intercept=-0.3, slope=5/8, col='darkgrey') + 
+  geom_abline(intercept=-1.1, slope=0.8, col='red')
+```
+
+---
+
+## Non-separable case
+
+If no separating hyperplane exists, there is no solution to the optimization constraints. 
+
+- As a solution, use a _soft margin_. 
+
+--
+
+Maximize $M$ over $\{\beta_0, \beta_1, \beta_2, ..., \beta_p, M\}$ subject to:
+
+$$\sum_{j=1}^p \beta^2_j = 1$$
+
+$$y_i (\beta_0 + \beta_1 x_{i1} + \beta_2 {i2} + ... + \beta_p {x_ip}) \ge M(1-\epsilon_i) \forall i = 1, ..., n$$
+
+$$\epsilon_i \ge 0, \sum_{i=1}^n \epsilon_i \le C$$
+
+where $C$ is a non-negative tuning parameter. $\epsilon_i$ are called "slack variables". 
+
+---
+
+## Support vector classifier
+
+The solution to these constraints is the __support vector classifier__. 
+
+- The SVC does not perfectly separate the two classes.
+- _Does_ provide greater robustness to individual observations.
+- _Does_ avoid overfitting to the training data.
+- Since we have a constraint on the sum of the squared $\beta_i$ terms, we should pre-process our data first.
+
+---
+
+## Example: `penguins` data]
+
+For the `penguins` data, let's build a classifier to predict whether or not a penguin is a Chinstrap penguin. For visualization purposes, we'll use only two inputs.
+
+```{r}
+penguins$species2 <- ifelse(penguins$species == 'Chinstrap', 1, -1)
+
+penguins <- penguins %>% select(-species)
+
+library(caret)
+
+trainIndex <- createDataPartition(penguins$species2, p=0.7, 
+                                  list=FALSE, times=1)
+
+penguins_train <- penguins[trainIndex, ]
+penguins_test <- penguins[-trainIndex, ]
+
+model_svc <- train(as.factor(species2) ~ flipper_length_mm + bill_length_mm ,
+                   data = penguins_train, 
+                   preProcess = c('center', 'scale'),
+                   method = "svmLinear",
+                   tuneLength = 10)
+```
+
+---
+
+```{r}
+model_svc
+```
+
+---
+
+Our training data is _almost_ perfectly separable.
+
+```{r}
+confusionMatrix(data=predict(model_svc, penguins_train), 
+                reference=as.factor(penguins_train$species2))
+```
+
+---
+
+```{r, echo=FALSE}
+n_breaks <- 100
+
+PredA <- seq(min(penguins_train$flipper_length_mm),
+             max(penguins_train$flipper_length_mm), 
+             length = n_breaks)
+PredB <- seq(min(penguins_train$bill_length_mm),
+             max(penguins_train$bill_length_mm), 
+             length = n_breaks)
+
+Grid <- expand.grid(flipper_length_mm = PredA, bill_length_mm = PredB)
+
+pred <- predict(model_svc, Grid)
+
+Grid %>% mutate(pred=pred) %>% 
+  ggplot(aes(x = flipper_length_mm, y = bill_length_mm)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  geom_point(data=penguins_train, aes(x=flipper_length_mm, 
+                            y=bill_length_mm, col=as.factor(species2)))
+```
+
+---
+
+If we include all possible inputs, our model becomes nearly _perfectly separable_: there is a 7-dimensional hyperplane that _almost_ perfectly classifies points.
+
+```{r}
+model_svc <- train(as.factor(species2) ~ . ,
+                   data = penguins_train, 
+                   preProcess = c('center', 'scale'),
+                   method = "svmLinear",
+                   tuneLength = 10)
+
+model_svc
+```
+
+---
+
+What if we don't have clear (or nearly clear) linear separation between points?
+
+```{r, echo=FALSE}
+library(mlbench)
+data <- mlbench.spirals(n=300, cycles=3, sd=0)
+spirals <- tibble(x1 = data$x[,1],
+               x2 = data$x[,2],
+               class = ifelse(data$classes == 1, 1, -1))
+
+spirals %>% ggplot(aes(x=x1, y=x2)) + geom_point(aes(col=as.factor(class)))
+```
+
+---
+
+```{r}
+model_svc <- train(as.factor(class) ~ . ,
+                   data = spirals, 
+                   preProcess = c('center', 'scale'),
+                   method = "svmLinear",
+                   tuneLength = 10)
+
+model_svc
+```
+
+---
+
+```{r, echo=FALSE}
+n_breaks <- 100
+
+PredA <- seq(min(spirals$x1),
+             max(spirals$x1), 
+             length = n_breaks)
+PredB <- seq(min(spirals$x2),
+             max(spirals$x2), 
+             length = n_breaks)
+
+Grid <- expand.grid(x1 = PredA, x2 = PredB)
+
+pred <- predict(model_svc, Grid)
+
+Grid %>% mutate(pred=pred) %>% 
+  ggplot(aes(x = x1, y = x2)) +
+  geom_tile(aes(fill = pred), alpha=0.25) + 
+  geom_point(data=spirals, aes(x=x1, 
+                            y=x2, col=as.factor(class)))
+```
+
+---
+
+## Non-linear decision boundaries
+
+We can address non-linear boundaries by fitting higher-order polynomial functions. For example, a degree-2 model would be:
+
+Maximize $M$ over $\{\beta_0, \beta_{11}, \beta_{12}, ..., \beta_{1p}, \beta_{21}, \beta_{22}, ..., \beta_{2p}, M\}$ subject to:
+
+$$\sum_{k=1}^2 \sum_{j=1}^p \beta^2_{kj} = 1$$
+
+$$y_i (\beta_0 + \sum_{j=1}^p\sum_{k=1}^2 \beta_{kj} x_{j}^k )  \ge M(1-\epsilon_i) \forall i = 1, ..., n$$
+
+$$\epsilon_i \ge 0, \sum_{i=1}^n \epsilon_i \le C$$
+
+--
+
+To extend this to higher-degree polynomials, expand the range of $k$. 
+
+--
+
+Eventually, this will get too complex...
+
+---
+
+## Support vector machine
+
+__Support vector machine__: The support vector machine extends the linear support vector classifier using _kernels_
+
+- The solution to the support vecotr classifier problem involves the _inner product_ 
+
+$$\left\langle \mathbf{x}_{i},\mathbf{x}_{k}\right\rangle =\sum_{j=1}^{p}x_{ij}x_{kj}$$
+
+---
+
+## SVC as inner product
+
+The linear support vector classifier can be written as:
+
+$$f(x)=\beta_{0}+\sum_{i=1}^{n}\alpha_{i}\left\langle \mathbf{x},\mathbf{x}_{i}\right\rangle$$ 
+
+where $\mathbf{x}$ is a new data point. It turns out that $\alpha_i$ is non-zero only for the support vecotrs in the solution. 
+
+$$f(x)=\beta_{0}+\sum_{i\in S}\alpha_{i}\left\langle \mathbf{x},\mathbf{x}_{i}\right\rangle$$ 
+
+---
+
+## Inner products to kernels
+
+Replace the inner product with a generalization of the inner product, $K$, called a __kernel__.
+
+- In words: kernel functions are measures of the similarity between two observations
+
+---
+
+## Inner products to kernels
+
+Some choices:
+
+- Linear kernel:
+
+$$K(x, y) = \mathbf{x}^T \mathbf{y} \ \mathbf{x, y} \in \mathbb{R}^p$$
+
+- Polynomial kernel:
+
+$$K(x, y) = (\mathbf{x}^T \mathbf{y} + r)^n \ \mathbf{x, y} \in \mathbb{R}^p, r\ge 0$$
+
+- Gaussian kernel:
+
+$$K(x, y) = exp\left[-\frac{||\mathbf{x}-\mathbf{y}||^{2}}{2\sigma^{2}}\right] \ \mathbf{x, y} \in \mathbb{R}^p$$
+
+- Exponential kernel:
+
+$$K(x, y) = exp\left[-\alpha ||\mathbf{x}-\mathbf{y}||\right] \ \mathbf{x, y} \in \mathbb{R}^p$$
+
+---
+
+## Support vector machine
+
+__Support vector machine__ (v. 2.0): The support vector machine is an extension of the support vector classifier that uses a kernel function instead of the inner product. This approach allows for more flexible, non-linear, boundaries.
+
+---
+
+## Example: Pima Indians diabetes
+
+Can we use support vector machines to accurately predict whether a person has diabetes?
+
+```{r}
+library(mlbench)
+data(PimaIndiansDiabetes2)
+
+PimaIndiansDiabetes2 <- PimaIndiansDiabetes2 %>% drop_na()
+
+trainIndex <- createDataPartition(PimaIndiansDiabetes2$diabetes, 
+                                  p=0.7, 
+                                  list=FALSE, times=1)
+train <- PimaIndiansDiabetes2[trainIndex, ]
+test <- PimaIndiansDiabetes2[-trainIndex, ]
+model <- train(diabetes ~ . ,
+               data = train, 
+               preProcess = c('center', 'scale'),
+               method = "svmLinear",
+               tuneLength = 10)
+```
+
+---
+
+```{r}
+model$finalModel
+
+model$results
+```
+
+---
+
+What if we try a different kernel?
+
+```{r}
+model_radial <- train(diabetes ~ . ,
+               data = train, 
+               preProcess = c('center', 'scale'),
+               method = "svmRadialSigma", #<<
+               tuneLength = 10)
+
+model_radial$finalModel
+
+model_radial$results
+```
+
+---
+
+What if we try a different kernel?
+
+```{r, eval=FALSE}
+model_radial <- train(diabetes ~ . ,
+               data = train, 
+               preProcess = c('center', 'scale'),
+               method = "svmPoly", #<<
+               tuneLength = 10)
+
+model_radial$finalModel
+
+model_radial$results
+```
+
+---
+
+## More than two classes?
+
+Like logistic regression, support vector machines don't extend easily to more than two classes.
+
+- __One versus one classification__: construct ${K \choose 2}$ support vector machines, each comparing a pair of classes
+
+--
+
+- __One versus all classification__: construct $K$ support vector machines, each comparing a single class to all other options

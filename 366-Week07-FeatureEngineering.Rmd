@@ -1,0 +1,725 @@
+---
+title: 'Week 7: Feature Engineering'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "MTH 366: Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=FALSE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+
+## Resources
+
+For some reading background on feature engineering, check out Brad Boehmke's _Hands on Machine Learning_ book (linked below).
+
+https://bradleyboehmke.github.io/HOML/engineering.html
+
+</br>
+
+--
+
+_"...live with your data before you plunge into modeling"_ (Leo Breiman, 2001)
+
+---
+
+## Feature engineering
+
+__Feature engineering__: the addition, deletion, or transformation of data
+
+--
+
+- Examples: pre-processing variables through scaling or principal components (PCA)
+
+---
+
+## Feature engineering
+
+There are several different types of feature engineering techniques we might use when analyzing a data set:
+
+1. Target engineering
+2. Imputation
+3. Feature filtering
+4. Numeric feature engineering
+5. Categorical feature engineering
+
+---
+
+## Target engineering
+
+__Target engineering__: transforming the response/output/_target_ variable
+
+--
+
+Can be especially useful with _parametric_ models such as regression, which require certain model assumptions
+
+- Example: Regression models often assume $Y_i \sim Normal$
+
+---
+
+## Target engineering strategies
+
+__Option 1__: For skewed target variables, normalize with a _log transformation_.
+
+$$Y_i^* = log(Y_i)$$
+
+- Some applications may work better with a natural log (.blue[`log()` in `R`]) and others may work better with a base-10 log (.blue[`log10()` in `R`])
+
+- This will transform most right skewed distributions to be approximately normal.
+
+---
+
+## Example: Ames housing data
+
+Let's revisit the Ames housing data set from our last lab.
+
+```{r}
+# Load the "usual" libraries
+library(tidyverse)
+library(caret)
+
+# Load the Ames housing data
+library(AmesHousing)
+ames <- make_ames()
+```
+
+---
+
+```{r, echo=FALSE}
+library(gridExtra)
+
+p1 <- ames %>% ggplot(aes(x=Sale_Price)) + 
+  geom_histogram(bins=20, fill='#00a78e') + labs(title='Original data')
+
+p2 <- ames %>% ggplot(aes(x=log(Sale_Price))) + 
+  geom_histogram(bins=20, fill='#00bce4') + labs(title='Natural log')
+
+p3 <- ames %>% ggplot(aes(x=log10(Sale_Price))) + 
+  geom_histogram(bins=20, fill='#7d3f98') + labs(title='Base-10 log')
+
+grid.arrange(p1, p2, p3, nrow=1)
+
+```
+
+
+---
+
+## Target engineering (log transform)
+
+We can apply the transformation manually:
+
+```{r, eval=FALSE}
+transformed_response <- log(ames$Sale_Price)
+```
+
+--
+
+... or we can be a bit more "strategic" by creating "recipes" for applying transformations. 
+
+```{r}
+# First, create a 75-25 training-testing split
+
+trainIndex <- createDataPartition(ames$Sale_Price, p=0.75,
+                                  list=FALSE, times=1)
+
+ames_Train <- ames[trainIndex, ]
+ames_Test <- ames[-trainIndex, ]
+```
+
+---
+
+## `recipes`
+
+`caret`’s preprocessing tools have a lot of options but the list is not exhaustive and they will only be called in a specific order. If you would like
+
+- a broader set of options,
+- the ability to write your own preprocessing tools, or
+- to call them in the order that you desire
+
+then you can use a `recipe` to do that.
+
+---
+class: Rcode
+
+```{r}
+library(recipes)
+
+# Log transformation recipe
+ames_recipe_log <- recipe(Sale_Price ~ Lot_Area + Year_Built + 
+                           House_Style + Gr_Liv_Area, 
+                          data = ames_Train) %>%
+  step_log(all_outcomes())
+
+ames_recipe_log
+```
+
+---
+
+## Target engineering strategies
+
+__Option 2__: The __Box-Cox__ transformation chooses an appropriate transformation from a family of _power_ transformations that will transform the output variable _as close as possible_ to a normal distribution
+
+- The log transformation is a special case
+
+--
+
+$$y(\lambda)=\begin{cases}
+\frac{Y^{\lambda}-1}{\lambda} & \lambda\ne0\\
+log(Y) & \lambda=0
+\end{cases}$$
+
+- $\lambda \in [-5, 5]$
+
+---
+class: Rcode
+
+```{r}
+# Box-Cox transformation recipe
+ames_recipe_bc <- recipe(Sale_Price ~ Lot_Area + Year_Built + 
+                           House_Style + Gr_Liv_Area, 
+                          data = ames_Train) %>%
+  step_BoxCox(all_outcomes())
+
+# We need to estimate lambda for the Box-Cox transformation
+# Use the training data to do this
+ames_recipe_bc_trained <- prep(ames_recipe_bc, 
+                               training = ames_Train, retain = TRUE)
+```
+
+---
+
+## Cooking with `recipes`
+
+The advantage of writing a recipe is clear - you don't need to manipulate the data manually _or store the modified data_.
+
+- Instead of passing the model formula, we pass the recipe.
+
+```{r}
+model_log <- train(ames_recipe_log,
+                   data = ames_Train,
+                   method = 'lm')
+
+model_bc <- train(ames_recipe_bc_trained,
+                   data = ames_Train,
+                   method = 'lm')
+```
+
+---
+
+Are the predictions for the `ames_Test` data reasonable?
+
+```{r}
+pred_log <- predict(model_log, ames_Test)
+head(pred_log)
+
+head(ames_Test$Sale_Price)
+```
+
+--
+
+.purple[Are they reasonable on the _transformed_ scale?]
+
+```{r}
+head(log(ames_Test$Sale_Price))
+```
+
+---
+
+## Cooking with `recipes`
+
+There are three main steps when applying feature engineering with `recipes`:
+
+1. `recipe` defines your feature engineering steps to create the blueprint
+2. `prep` estimates any feature engineering parameters (for example, $\lambda$ in a Box-Cox transformation) based on the training data
+3. `bake` applies the blueprint to new data
+
+The `caret` data set automatically preps and bakes within `train()`. _However_, if we want to work with a "baked" testing data set, we'll need to do this ourselves.
+
+---
+class: Rcode
+
+```{r}
+# Original recipe
+ames_recipe_bc <- recipe(Sale_Price ~ Lot_Area + Year_Built + 
+                           House_Style + Gr_Liv_Area, 
+                          data = ames_Train) %>%
+  step_BoxCox(all_outcomes())
+
+# Prepped recipe
+ames_recipe_bc_trained <- prep(ames_recipe_bc, 
+                               training = ames_Train, 
+                               retain = TRUE)
+
+# "Bake" our testing data
+ames_Test_baked <- bake(ames_recipe_bc_trained, 
+                        new_data = ames_Test)
+```
+
+---
+
+Did it work?
+
+```{r}
+head(ames_Test$Sale_Price)
+
+head(ames_Test_baked$Sale_Price)
+```
+
+--
+
+.full-width[.content-box-purple[When you're target engineering, be sure to transform your output variable in the testing data!
+
+---
+
+## Example: Log or Box-Cox?
+
+Which one worked better?
+
+```{r}
+# Log transformation - why can I skip "baking"?
+postResample(pred = predict(model_log, ames_Test),
+             obs = log(ames_Test$Sale_Price))
+
+# Box-Cox transformation - why can't I skip "baking"?
+postResample(pred = predict(model_bc, ames_Test),
+             obs = ames_Test_baked$Sale_Price)
+```
+
+---
+
+## Missing data
+
+Missing data is a thorn in every data scientist's side. 
+
+- Many algorithms (generalized linear models, neural networks, support vector machines, k-nearest neighbors, etc.) cannot cope with missing data
+
+--
+
+There are some ways we can approach missing data:
+
+1. Remove it
+2. _Replace it_
+
+--
+
+__Imputation__: algorithmically replacing missing values in a data set with some "educated guesses"
+
+---
+
+## Informative missingness
+
+__Informative missingness__: there is an underlying structural _cause_ for the data to be missing such as deficiences in data collection or a specific property of the observation
+
+- If missing data is informative, keep them missing! 
+
+- Solution: Replace 'NA' with "None"
+
+---
+
+## Missing at random
+
+__Missing at random__: there is no identifiable cause or reason for the data to be missing, instead the missing values can be assumed to occur _independently_ of the data collection process
+
+- If data is missing at random: delete it or replace it using _imputation_
+
+--
+
+However we choose to address the missing data, we should do it _before fitting the model_.
+
+---
+
+## Visualizing missing values
+
+The version of the Ames housing data set we've considered until this point is the "clean" version. 
+
+```{r}
+ames_raw <- AmesHousing::ames_raw
+```
+
+- In the messy version, every row has at least one missing value!
+
+--
+
+.full-width[.content-box-red[Think about housing listings: is missing data informatively missing or missing at random? Why?
+
+---
+
+## Visualizing missing data
+
+```{r}
+ames_raw %>%
+  is.na() #<< 
+```
+
+---
+
+## Visualizing missing data
+
+```{r}
+ames_raw %>%
+  is.na() %>% 
+  reshape2::melt() #<< 
+```
+
+---
+
+## Visualizing missing data
+
+```{r, echo=FALSE}
+ames_raw %>%
+  is.na() %>%
+  reshape2::melt() %>%
+  ggplot(aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() + 
+  labs(x='Observation', y='Variable') + 
+  scale_fill_manual(values=c('#efedf5', '#756bb1'))
+```
+
+---
+
+## Example: Ames housing data
+
+- `Alley`, `Fireplace Qu` (fireplace quality), `Pool QC` (pool quality), `Fence` (fence quality), and `MiscFeature` are often missing
+- `Garage` features are often missing together
+- `Bsmt` (basement) features are also often missing together
+
+--
+
+Okay, but what do we do?
+
+--
+
+Is there an easier way to visualize missing data?
+
+---
+
+... of course there is.
+
+```{r}
+library(visdat)
+vis_miss(ames_raw, cluster = TRUE)
+```
+
+---
+
+This looks like a `ggplot2` graph - try adding `ggplot` options?
+
+```{r}
+vis_miss(ames_raw, cluster = TRUE) + coord_flip()
+```
+
+---
+
+## Imputation
+
+If we want to use _imputation_, how do we do it?
+
+__Option 1__: Replace missing values with a descriptive statistic for that variable such as the mean, median, or mode (categorical)
+
+- Computationally efficient
+- Unbiased (does reduce the variability of the feature)
+- Ignores relationships between the feature with missing values and any other features in the data set
+
+--
+
+__Option 2__: Use grouped statistics to replace missing values with descriptive statistics within similiar groups
+
+- Infeasible for larger data sets
+- Can introduce bias
+
+---
+class: Rcode
+
+_Hack_: The column names in the raw data had spaces instead of underscores. 😲
+
+```{r}
+colnames(ames_raw) <- c('Order', 'PID', colnames(ames)[1:79])
+ames_raw_Train <- ames_raw[trainIndex, ]
+
+ames_recipe <- recipe(Sale_Price ~ Lot_Area + Year_Built + 
+                           House_Style + Gr_Liv_Area,  
+                          data = ames_raw_Train) %>%
+  # Log transformation worked slightly better
+  step_log(all_outcomes()) %>% 
+  # Replace missing values with the median
+  step_medianimpute(Gr_Liv_Area)
+```
+
+- `step_modeimpute` imputes categorical features with the most common values
+
+---
+
+```{r}
+ames_recipe
+```
+
+---
+
+## Imputation
+
+__Option 3__: Use $k$-nearest neighbors to impute values based on other similiar observations
+
+- To impute a numerical feature, $k$-nearest neighbors takes a distance-weighted average of the $k$ nearest points
+- Standard Euclidean distance is commonly used
+- For computational efficiency, set $k \in 5:10$
+- $k$-nearest neighbors is highly sensitive to units, so consider centering and scaling first
+
+---
+class: Rcode
+
+```{r}
+ames_recipe2 <- recipe(Sale_Price ~ Lot_Area + Year_Built + 
+                           House_Style + Gr_Liv_Area,  
+                          data = ames_Train) %>%
+  # Log transformation worked slightly better
+  step_log(all_outcomes()) %>% 
+  # Center and scale features, NAs are removed by default
+  step_center(all_predictors()) %>%
+  step_scale(all_predictors()) %>%
+  # Apply knn with k=7
+  step_knnimpute(all_predictors(), neighbors=7)
+```
+
+---
+
+```{r}
+ames_recipe2
+```
+
+---
+
+## Feature filtering
+
+__Feature filtering__: another term for this is model selection, removing "non-informative" variables
+
+Including extra, "non-informative" features:
+
+1. Increases computational time to train a model and make predictions
+2. Can increase model error (some models are less sensitive to this than others)
+
+--
+
+How do we know which features are "non-informative"?
+
+---
+
+## Feature filtering
+
+Start with the low-hanging fruit: __variables with variance near zero__
+
+- These are effectively extra constants in the model and won't change with the feature variable
+
+--
+
+For numerical variables:
+
+- Use the coefficient of variation (since variance depends on the original units)
+
+$$CV = \frac{sd_i}{\bar{x}_i}$$
+
+--
+
+Rule of thumb for categorical variables: 
+
+1. Fraction of unique values over the sample size is low (say $\le 10%$)
+2. Ratio of the frequency of the most prevalent value to the frequency of the second most prevalent value is large (say $\ge 20$)
+
+---
+class: Rcode
+
+In `caret`, can use the `nearZeroVar` function to check your training data for non-informative features.
+
+```{r}
+nearZeroVar(ames_Train, saveMetrics = TRUE) 
+```
+
+---
+
+For more nicely formatted tables, use the `kableExtra` package (sample code in your notes).
+
+```{r, echo=FALSE, eval=FALSE}
+library(kableExtra)
+table <- nearZeroVar(ames_Train, saveMetrics = TRUE) 
+
+kable(table) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "500px")
+```
+
+---
+class: Rcode
+
+Our recipe gets a little longer:
+
+- `step_zv()` will remove zero variance features
+- `step_nzv()` will remove near-zero variance features
+
+```{r}
+ames_recipe2 <- recipe(Sale_Price ~ .,  
+                          data = ames_Train) %>%
+  # Log transformation worked slightly better
+  step_log(all_outcomes()) %>% 
+  # Center and scale features, NAs are removed by default
+  step_center(all_predictors()) %>%
+  step_scale(all_predictors()) %>%
+  # Apply knn with k=7
+  step_knnimpute(all_predictors(), neighbors=7) %>%
+  # Remove near-zero variance features
+  step_nzv(all_predictors())
+```
+
+---
+
+## Numeric feature engineering
+
+__Numeric feature engineering__: transforming _numeric_ inputs to stablize an algorithm or improve predictive performance
+
+Numeric inputs can be problematic when:
+
+- Distributions are skewed (use transformations or _standardize_)
+- Outliers are present (investigate outliers, possibly remove them)
+- Wide range in magnitude (use transformations or _standardize_)
+
+---
+
+## Categorical feature engineering
+
+__Categorical feature engineering__: transforming _categorical_ inputs to stablize an algorithm or improve predictive performance
+
+- Lumping: if a feature has many categorical levels with only a few observations, we might combine features together
+
+---
+
+## Neighborhoods in Ames
+
+```{r}
+ames_Train %>% group_by(Neighborhood) %>% summarize(n=n())
+```
+
+---
+
+I've only been to Ames once (and it was just to stop for gas, so does it count?), so we need some additional information to group neighborhoods.
+
+- We have latitude and longitude for each house, we could use that?
+
+--
+
+### Mapping in R
+
+In MTH 365, we used the `leaflet` package to help make maps of data.
+
+---
+class: Rcode
+
+```{r}
+library(leaflet)
+
+leaflet() %>%
+  addTiles() %>%  # Add default OpenStreetMap map tiles
+  addMarkers(lng=-95.9503, lat=41.2662, popup="That's us!")
+```
+
+---
+
+```{r}
+leaflet() %>%
+  addTiles() %>%  # Add default OpenStreetMap map tiles
+  addMarkers(lng=ames_Train$Longitude, lat=ames_Train$Latitude)
+```
+
+---
+
+```{r}
+leaflet() %>%
+  addTiles() %>%  # Add default OpenStreetMap map tiles
+  addMarkers(lng=ames_Train$Longitude, lat=ames_Train$Latitude, 
+             clusterOptions = markerClusterOptions(),
+             popup=ames_Train$Neighborhood)
+```
+
+---
+
+```{r}
+ames_Train %>% ggplot(aes(x=Longitude, y=Latitude)) + geom_point(aes(col=Neighborhood))
+```
+
+---
+
+## Example: Ames neighborhoods
+
+.full-width[.content-box-purple[Do we know enough to make a reasonable "lumping" of neighborhoods in Ames? What else would we need to know?
+
+---
+
+![](https://miro.medium.com/max/1400/1*HjcbfZyH5gWe9yZA32Gw2g.png)
+
+---
+
+## Feature engineering "dos and don'ts"
+
+- DO: document your procedure and decisions
+- DON'T: overwrite your original data
+
+--
+
+- DO: focus on making _defensible decisions_
+- DON'T: focus on making _the right_ decision
+
+--
+
+- DO: consider _automated feature engineering_, sometimes
+- DON'T: rely too much on automated feature engineering
+
+_Overly engineered data reduces interpretability of the model, as well as our ability to explain a particular prediction!_
