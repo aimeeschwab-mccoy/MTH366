@@ -1,0 +1,1038 @@
+---
+title: 'Week 13: Deep Learning'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "MTH 366: Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=FALSE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+## Shallow or deep?
+
+Most machine learning algorithms only use one or two layers of data manipulation/transformation to learn the output.
+
+- We call these _shallow models_
+
+--
+
+__Deep learning__ uses a multi-layer approach to modeling, typically through _neural networks_. 
+
+--
+
+- Resources: _Hands on Machine Learning with R_ (Ch. 13)
+
+---
+
+## TensorFlow, keras, and R
+
+__TensorFlow__ is a free, open-source software library for machine learning applications.
+
+- Written and supported by Google Brain
+
+```{r, out.width = "400px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-tf_logo_social.png")
+```
+
+---
+
+## TensorFlow, keras, and R
+
+__Keras__ is an open-source library for neural networks written in __Python__.
+
+- Keras can be implemented in TensorFlow (part of the core library)
+- https://github.com/keras-team/keras
+
+```{r, out.width = "400px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-keras.png")
+```
+
+---
+
+## TensorFlow, keras, and R
+
+In 2017, __RStudio__ released the `keras` package for R. 
+
+- For details and resources, check out https://keras.rstudio.com/
+
+--
+
+To install:
+
+```{r, eval=FALSE}
+# Install the keras package from GitHub or CRAN
+devtools::install_github("rstudio/keras")
+# install.packages('keras')
+
+
+# To install the TensorFlor backend 
+# (This may take several minutes)
+library(keras)
+install_keras()
+```
+
+TensorFlow supports Python 3.5-3.7. If you have an _earlier_ version or a _later_ version, you'll need to change your Python installation.
+
+---
+
+## Example: MNIST database
+
+The MNIST (Modified National Institute of Standards and Technology database) was first presented in 1990. AT&T Bell Lab was contracted to use this data to build automatic mail-sorting machines for the US Postal Service.
+
+- __Task__: Classify hand-written letters into digits.
+
+```{r, out.width = "500px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-MNIST.png")
+```
+
+---
+
+```{r, echo=-1}
+library(keras)
+library(dslabs)
+mnist <- dslabs::read_mnist()
+```
+
+The MNIST database contains 60,000 images in the training data set and 10,000 images in the testing data set. 
+
+The images component is a matrix with each column representing one of the 28*28 = 784 pixels. The values are integers between 0 and 255 representing grey scale. The labels components is a vector representing the digit shown in the image.
+
+--
+
+```{r}
+mnist_x <- mnist$train$images
+mnist_y <- mnist$train$labels
+```
+
+---
+
+## Conditions
+
+Before we look at the architecture of neural networks, a few requirements:
+
+1. __Feedforward deep neural networks__ (DNN) require all feature inputs to be numeric. If your data contains categorical features, they will need to be transformed into "dummy variables".
+
+2. DNNs are _highly sensitive_ to the individual scale of the input features. We'll always standardize our data first.
+
+3. `keras` requires our response to be a "one-hot encoded matrix".
+
+--
+
+- What do you think this means?
+
+---
+
+## "One-hot encoding"
+
+```{r}
+head(mnist_y)
+mnist_y <- to_categorical(mnist_y, 10)
+
+mnist_y
+```
+
+---
+
+## Standardizing MNIST
+
+Feature values for the MNIST inputs range from 0 (white) to 255 (black). 
+
+```{r}
+colnames(mnist_x) <- paste0("V", 1:ncol(mnist_x))
+mnist_x <- mnist_x/255
+```
+
+---
+
+Image 1 should be a "5".
+
+```{r}
+library(RColorBrewer)
+grid <- expand.grid(x=1:28, y=1:28)
+colnames(grid) <- c('x', 'y')
+# Each row represents an image
+grid$col <- mnist_x[1,]
+
+grid %>%
+  ggplot(aes(x=x, y=y)) + geom_tile(aes(fill=col)) +
+  scale_fill_distiller(palette='Greys', direction=1)
+```
+
+---
+
+Image 1 should be a "5".
+
+```{r}
+grid %>%
+  ggplot(aes(x=x, y=y)) + geom_tile(aes(fill=col)) + 
+  coord_flip() +
+  scale_fill_distiller(palette='Greys', direction=1)
+```
+
+---
+
+What's image 2?
+
+```{r}
+grid$col <- mnist_x[2,]
+
+grid %>%
+  ggplot(aes(x=x, y=y)) + geom_tile(aes(fill=col)) + 
+  coord_flip() +
+  scale_fill_distiller(palette='Greys', direction=1)
+```
+
+---
+
+## Why deep learning?
+
+Many different features of the data contribute to letter recognition:
+
+1. Angles
+2. Edges
+3. Thickness
+4. Circles/straight lines/curves
+5. Orientation
+
+How do we represent these in a single variable?
+
+---
+
+## Neural network architecture
+
+- The .blue[input layer] takes the original input features, and passes them to one or more .green[hidden layers].
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-neural_net.png")
+```
+
+---
+
+## Neural network architecture
+
+- Data passes through the .green[hidden layers] and is transformed, until eventually reaching the .red[output layer] (final predictions).
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-neural_net.png")
+```
+
+--
+
+- "Deep" neural networks have more than one hidden layer.
+
+---
+
+## Hidden layers
+
+The "hidden layers" of a neural network capture features that we don't have a good way to "measure".
+
+- MNIST: one hidden layer may contain angles, another may contain curvature, etc...
+
+--
+
+DNNs use non-linear transformations across each layer, meaning we can model some very complex, non-linear relationships.
+
+--
+
+__This comes with a cost__. Deep learning thrives when $n >> p$. 
+
+---
+
+## Feedforward DNNs
+
+__Feedforward deep neural network__: these DNNs use densely connected layers where (1) every layer is fully connected and (2) inputs influence each successive layer
+
+```{r, out.width = "500px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-feedforward.png")
+```
+
+Also called the __multilayer perceptron__, which is a much cooler name.
+
+---
+
+## Building a DNN
+
+When developing the _network architecture_ (structure) of a feedforward DNN, there are two things to consider:
+
+1. Layers and nodes 
+2. Activation
+
+--
+
+The __layers and nodes__ decide how complex the network should be.
+
+- For most applications, 2-5 hidden layers will be sufficient. Best bet is to start higher.
+- Number of nodes in each layer is often equal to or less than the number of features. 
+
+--
+
+For models with many features, training deep models with many hidden layers and fewer nodes can be more efficient than training a single layer network with the same number of nodes.
+
+---
+
+## Building a DNN
+
+When developing the _network architecture_ (structure) of a feedforward DNN, there are two things to consider:
+
+1. Layers and nodes 
+2. Activation
+
+--
+
+The output layers can predict:
+
+1. A numeric output (regression), 
+2. Probability of success (classification with binary outcome), or
+3. Multiple probabilities of class membership (classification with three or more outcomes)
+
+---
+
+The model below uses two hidden layers: one with 128 nodes and one with 64 nodes. The final, output layer has 10 nodes: one for each digit.
+
+- The first layer needs the input shape argument to be the number of features in your data, but successive layers can build this dynamically.
+
+- The `compile` statement includes instructions for how to fit (`loss`), optimize (`optimizer`), and evaluate (`metrics`) the model. There are no defaults in `compile`.
+
+```{r}
+model1 <- keras_model_sequential() %>%
+  layer_dense(units = 128, input_shape = ncol(mnist_x)) %>%
+  layer_dense(units = 64) %>%
+  layer_dense(units = 10) %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy'))
+```
+
+---
+
+
+```{r, cache=TRUE}
+# Run live in RStudio
+fit1 <- model1 %>%
+  fit(x = mnist_x,
+      y = mnist_y)
+```
+
+---
+
+
+```{r, fig.height=4}
+fit1
+
+plot(fit1)
+```
+
+---
+
+
+```{r, echo=-1}
+model1 <- keras_model_sequential() %>%
+  layer_dense(units = 128, input_shape = ncol(mnist_x)) %>%
+  layer_dense(units = 64) %>%
+  layer_dense(units = 10) %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy'))
+
+# Use the model instructions, not the fit
+# Predict class membership (identify digit)
+predict_classes(model1, mnist_x)
+```
+
+---
+
+
+```{r}
+# Use the model instructions, not the fit
+# The default options are kind of garbage, we'll improve
+predict_proba(model1, mnist_x)
+```
+
+---
+
+## Programming note
+
+In RStudio, you'll have to keep all functions related to a keras model within the same chunk.
+
+- Or alternatively, redefine the model in a new chunk.
+- I don't know why. 
+
+---
+
+## Activation
+
+Each node is connected to all other nodes in the previous layer. Each of these connections has a weight, and then all incoming inputs are multiplied by the corresponding connection weight _plus_ an added bias parameter. 
+
+The sum of these inputs becomes the input to the __activation function__.
+
+```{r, out.width = "500px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-activation2.png")
+```
+
+---
+
+## Activation functions
+
+```{r, out.width = "800px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-activation.png")
+```
+
+---
+
+## Activation functions
+
+- RELU is the most common approach (simplicity)
+- For binary classification problems, use sigmoid activation function (logistic regression?)
+
+- For regression problems, use _linear activation function_
+
+$$f(x) =x$$
+
+- For classification with more than two classes, use _softmax activation function_
+
+$$f(x) = \frac{e^{x_i}}{\sum_j e^{x_j}}$$
+
+---
+
+
+Default is to use `linear` activation. 
+
+- Options: `relu`, `elu`, `selu`, `linear`, `sigmoid`, `softmax`, `softplus` , `tanh`, `exponential`...
+
+```{r}
+model2 <- keras_model_sequential() %>%
+  layer_dense(units = 128, input_shape = ncol(mnist_x),
+              activation='relu') %>% #<<
+  layer_dense(units = 64, activation='relu') %>%
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy'))
+```
+
+---
+
+Has changing the activation functions improved the model?
+
+```{r, cache=TRUE}
+model2 <- keras_model_sequential() %>%
+  layer_dense(units = 128, input_shape = ncol(mnist_x),
+              activation='relu') %>% #<<
+  layer_dense(units = 64, activation='relu') %>%
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy'))
+
+# Run live in RStudio
+fit2 <- model2 %>%
+  fit(x = mnist_x,
+      y = mnist_y)
+
+fit2
+```
+
+---
+
+Model 1:
+
+```{r}
+plot(fit1)
+```
+
+---
+
+Model 2:
+
+```{r}
+plot(fit2)
+```
+
+---
+
+## Backpropagation
+
+On the first run, or _forward pass_:
+
+1. Select a "batch" of observations
+2. Randomly assign weights across all the node connections
+3. Predict the output
+
+
+__Backpropagation__: the process by which a neural network assesses its own accuracy and automatically adjusts the weights across all node connections to improve that accuracy
+
+---
+
+## Backpropagation
+
+First, establish a __loss (objective) function__ to measure performance.
+
+- Regression: mean square error, adjusted R-squared
+- Classification: _binary entropy_, multi-categorical cross entropy (_not_ the misclassification rate)
+
+$$H(X) = -p log_2 (p) - (1-p) log_2 (1-p)$$
+
+--
+
+- Higher entropy $\rightarrow$ more _uncertainty_
+
+---
+
+## Mini-batch stochastic gradient descent
+
+On each run, the DNN:
+
+1. Measures its performance based on the loss function chosen
+2. Works backwards through the layers, computing the _gradient_ of the loss with respect to the network weights
+3. Adjusts the weights in the opposite direction of the gradients, selects another "batch", and repeats
+
+There are several variations on this algorithm, but the basic idea is the same. These variations make up the __optimization__ choices.
+
+- _Learning rate_: how fast the gradient descends
+- _Momentum_: how much of the previous step is "remembered"
+
+---
+
+## Optimization functions
+
+Option|Description
+-----|---------
+`optimizer_sgd()`|Stochastic gradient descent
+`optimizer_rmsprop()`|RMSProp optimizer, good for _recurrent neural networks_
+`optimizer_adagrad()`|Adagrad optimizer
+`optimizer_adadelta()`|Adadelta optimizer
+`optimizer_adam()`|Adam optimizer, a slight tweak on RMSProp
+`optimizer_adamax()`|Adamax optimizer
+`optimizer_nadam()`|Adam optimizer with Nesterov momentum
+
+---
+
+## Optimization functions
+
+How each optimization function works is beyond the scope of this class. 
+
+For a nice visual:
+
+https://miro.medium.com/max/620/1*XVFmo9NxLnwDr3SxzKy-rA.gif
+
+---
+
+## Model training
+
+- `batch_size`: Set how many observations for each batch. Values selected are typically powers of 2 (i.e. 32, 64, 128, 256, etc.) to maximally support GPU/CPU hardware. Small values are computationally burdensome (need more batches), large values provide less feedback signal.
+
+--
+
+- `epoch`: This defines how many times the algorithm sees the _entire_ data set. Each time all observations have been used, an epoch is completed.
+
+---
+
+__Example__: For the MNIST training data set with 60,000 observations...
+
+```{r}
+batch <- c(32, 64, 128, 256, 512, 1024)
+runs_per_epoch <- ceiling(60000/batch)
+
+table <- cbind(batch, runs_per_epoch)
+table
+```
+
+---
+
+## Model training
+
+- `validation_split`: How much of the data should be "held out" for estimating error rate
+
+--
+
+- `verbose`: you can set this to `FALSE` to suppress the live updates of the loss function
+
+---
+
+
+```{r, cache=TRUE}
+model3 <- keras_model_sequential() %>%
+  layer_dense(units = 64, input_shape = ncol(mnist_x),
+              activation='relu') %>% 
+  layer_dense(units = 64, activation='relu') %>%
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy'))
+
+fit3 <- model3 %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25, #<<
+      batch_size = 128, #<<
+      validation_split = 0.2) #<<
+
+fit3
+```
+
+---
+
+```{r}
+plot(fit3)
+```
+
+---
+
+## Model tuning
+
+There are many ways to tune a deep neural network - and most of the steps are the same as the general model tuning process.
+
+1. Adjust model size (layers and nodes)
+2. Add batch normalization
+3. Add regularization
+4. Adjust learning rate (tuning parameters)
+
+---
+
+## Adjust model size
+
+Higher model _capacity_ (more layers and nodes) results in more __memorization capacity__ for the model.
+
+1. Allows the model to learn more features and patterns.
+2. May learn _too many_ features and patterns (overfitting).
+
+Find a model that overfits _slowly_.
+
+---
+
+## Example: MNIST database
+
+Consider the following set of model capacities.
+
+Size|1 hidden layer|2 hidden layers|3 hidden layers
+--------|--------|--------|--------
+Small|16|16, 8|16, 8, 4
+Medium|64|64, 32|64, 32, 16
+Large|256|256, 128|256, 128, 64
+
+- For all models, `epochs=25`, `batch_size=128`, and `validation_split=0.2`.
+
+Full code is available in your notes (download Code at the top to see it). It took approximately 2.5 minutes on the computer in my office.
+
+---
+
+```{r, cache=TRUE, echo=FALSE}
+p1 <- plot(keras_model_sequential() %>%
+  layer_dense(units = 16, input_shape = ncol(mnist_x),
+              activation='relu') %>% 
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy')) %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25,
+      batch_size = 128, 
+      validation_split = 0.2,
+      verbose=FALSE)) + labs(title='Small: 1 layer') +
+  guides(col=FALSE, fill=FALSE)
+
+p2 <- plot(keras_model_sequential() %>%
+  layer_dense(units = 16, input_shape = ncol(mnist_x),
+              activation='relu') %>% 
+  layer_dense(units = 8, activation='relu') %>% 
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy')) %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25,
+      batch_size = 128, 
+      validation_split = 0.2,
+      verbose=FALSE)) + labs(title='Small: 2 layers')+
+  guides(col=FALSE, fill=FALSE)
+
+p3 <- plot(keras_model_sequential() %>%
+  layer_dense(units = 16, input_shape = ncol(mnist_x),
+              activation='relu') %>% 
+  layer_dense(units = 8, activation='relu') %>% 
+  layer_dense(units = 4, activation='relu') %>% 
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy')) %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25,
+      batch_size = 128, 
+      validation_split = 0.2,
+      verbose=FALSE)) + labs(title='Small: 3 layers') + guides(col=FALSE, fill=FALSE)
+
+p4 <- plot(keras_model_sequential() %>%
+  layer_dense(units = 64, input_shape = ncol(mnist_x),
+              activation='relu') %>% 
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy')) %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25,
+      batch_size = 128, 
+      validation_split = 0.2,
+      verbose=FALSE)) + labs(title='Medium: 1 layer')+ guides(col=FALSE, fill=FALSE)
+
+p5 <- plot(keras_model_sequential() %>%
+  layer_dense(units = 64, input_shape = ncol(mnist_x),
+              activation='relu') %>% 
+  layer_dense(units = 32, activation='relu') %>% 
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy')) %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25,
+      batch_size = 128, 
+      validation_split = 0.2,
+      verbose=FALSE)) + labs(title='Medium: 2 layers')+ guides(col=FALSE, fill=FALSE)
+
+p6 <- plot(keras_model_sequential() %>%
+  layer_dense(units = 64, input_shape = ncol(mnist_x),
+              activation='relu') %>% 
+  layer_dense(units = 32, activation='relu') %>% 
+  layer_dense(units = 16, activation='relu') %>% 
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy')) %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25,
+      batch_size = 128, 
+      validation_split = 0.2,
+      verbose=FALSE)) + labs(title='Medium: 3 layers')+ guides(col=FALSE, fill=FALSE)
+
+p7 <- plot(keras_model_sequential() %>%
+  layer_dense(units = 256, input_shape = ncol(mnist_x),
+              activation='relu') %>% 
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy')) %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25,
+      batch_size = 128, 
+      validation_split = 0.2,
+      verbose=FALSE)) + labs(title='Large: 1 layer')+ guides(col=FALSE, fill=FALSE)
+
+p8 <- plot(keras_model_sequential() %>%
+  layer_dense(units = 256, input_shape = ncol(mnist_x),
+              activation='relu') %>% 
+  layer_dense(units = 128, activation='relu') %>% 
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy')) %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25,
+      batch_size = 128, 
+      validation_split = 0.2,
+      verbose=FALSE)) + labs(title='Large: 2 layers')+ guides(col=FALSE, fill=FALSE)
+
+p9 <- plot(keras_model_sequential() %>%
+  layer_dense(units = 256, input_shape = ncol(mnist_x),
+              activation='relu') %>%
+  layer_dense(units = 128, activation='relu') %>% 
+  layer_dense(units = 64, activation='relu') %>%
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy')) %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25,
+      batch_size = 128, 
+      validation_split = 0.2,
+      verbose=FALSE)) + labs(title='Large: 3 layers')+ guides(col=FALSE, fill=FALSE)
+
+```
+
+```{r, echo=FALSE, fig.height=8, fig.width=12}
+library(patchwork)
+(p1 + p2 + p3)/(p4+p5+p6)/(p7+p8+p9) & theme_minimal()
+```
+
+Coral is training, teal is validation.
+
+---
+
+## Batch normalization
+
+Over time, the mean and variance of the data will change as it is transformed by the network.
+
+__Batch normalization__: data is normalized adaptively during training
+
+- This can help minimize the validation loss sooner, and increase model efficiency.
+- It can also help reduce overall overfitting.
+
+--
+
+To implement, add `layer_batch_normalization()` between each hidden layer.
+
+---
+
+
+```{r, cache=TRUE}
+model4 <- keras_model_sequential() %>%
+  layer_dense(units = 64, input_shape = ncol(mnist_x),
+              activation='relu') %>% 
+  layer_batch_normalization() %>% #<<
+  layer_dense(units = 32, activation='relu') %>%
+  layer_batch_normalization() %>% #<<
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy'))
+
+fit4 <- model4 %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25,
+      batch_size = 128, 
+      validation_split = 0.2) 
+
+fit4
+```
+
+---
+
+```{r, fig.height=4}
+plot(fit4)
+```
+
+---
+
+## Regularization
+
+This should sound familiar...
+
+--
+
+In neural networks, __regularlization__ applies an $\mathcal{l}_1$ (absolute value) or $\mathcal{l}_2$ (square) norm to the size of the node weights.
+
+- The $\mathcal{l}_2$ norm is the most common, and usually called _weight decay_ in this setting.
+
+Using regularization shrinks the node weights toward zero to avoid overfitting.
+
+---
+
+
+```{r, cache=TRUE}
+model5 <- keras_model_sequential() %>%
+  layer_dense(units = 64, input_shape = ncol(mnist_x),
+              activation='relu',
+              kernel_regularizer = regularizer_l2(0.001)) %>% #<<
+  layer_batch_normalization() %>% 
+  layer_dense(units = 32, activation='relu',              
+              kernel_regularizer = regularizer_l2(0.001)) %>% #<<
+  layer_batch_normalization() %>% 
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy'))
+
+fit5 <- model5 %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 25,
+      batch_size = 128, 
+      validation_split = 0.2) 
+```
+
+---
+
+```{r, fig.height=4}
+fit5
+plot(fit5)
+```
+
+---
+
+## Dropout
+
+__Dropout__: randomly select some number of nodes to remove during training
+
+- Range from 0.2-0.5 in practice, but depends on the data
+- As you add dropout, you usually need to increase the number of epochs to allow the network enough iterations to find a global minimum
+- Implement using `layer_dropout()`
+
+---
+
+
+```{r, cache=TRUE}
+model6 <- keras_model_sequential() %>%
+  layer_dense(units = 64, input_shape = ncol(mnist_x),
+              activation='relu',
+              kernel_regularizer = regularizer_l2(0.001)) %>% 
+  layer_dropout(rate = 0.2) %>% #<<
+  layer_batch_normalization() %>% 
+  layer_dense(units = 32, activation='relu',              
+              kernel_regularizer = regularizer_l2(0.001)) %>% 
+  layer_dropout(rate = 0.2) %>% #<<
+  layer_batch_normalization() %>% 
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy'))
+
+fit6 <- model6 %>%
+  fit(x = mnist_x, 
+      y = mnist_y, 
+      epochs = 50, #<<
+      batch_size = 128, 
+      validation_split = 0.2) 
+```
+
+---
+
+```{r, fig.height=4}
+fit6
+plot(fit6)
+```
+
+---
+
+Is the final model an improvement? We hope so!
+
+- Predicted class memberships:
+
+```{r, echo=-1}
+model6 <- keras_model_sequential() %>%
+  layer_dense(units = 64, input_shape = ncol(mnist_x),
+              activation='relu',
+              kernel_regularizer = regularizer_l2(0.001)) %>% 
+  layer_dropout(rate = 0.2) %>% #<<
+  layer_batch_normalization() %>% 
+  layer_dense(units = 32, activation='relu',              
+              kernel_regularizer = regularizer_l2(0.001)) %>% 
+  layer_dropout(rate = 0.2) %>% #<<
+  layer_batch_normalization() %>% 
+  layer_dense(units = 10, activation='softmax') %>%
+  compile(loss='categorical_crossentropy',
+          optimizer=optimizer_rmsprop(),
+          metrics=c('accuracy'))
+
+predict_classes(model6, mnist_x)
+```
+
+---
+
+- Predicted probabilties:
+
+```{r}
+predict_proba(model6, mnist_x)
+```
+
+---
+
+## Other types of neural networks
+
+__Recurrent neural networks__: Each hidden layer receives it's own output (with some delay)
+
+```{r, out.width = "400px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-recurrent_nn.png")
+```
+
+---
+
+## Other types of neural networks
+
+__Recurrent neural networks__: Each hidden layer receives it's own output (with some delay)
+
+```{r, out.width = "400px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-recurrent_nn.png")
+```
+
+---
+
+## Other types of neural networks
+
+__Autoencoder networks__: an unsupervised learning approach using neural networks (no "right" answer)
+
+```{r, out.width = "300px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-autoencoder.png")
+```
+
+---
+
+## Other types of neural networks
+
+__Convolutional neural networks (CNN)__: these use regularization and convolutional layers in place of general matrix multiplication in at least one layer
+
+```{r, out.width = "400px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-cnn.png")
+```
+
+---
+
+## Other types of neural networks
+
+__Generative adversarial network (GAN)__: GANs use a double network (geneator v. discriminator) that try to "fool each other"
+
+- Specifically, the generator tries to generate some data, and the discriminator tries to tell the generated data from "real" data
+- Application to images: https://affinelayer.com/pix2pix/
+
+```{r, out.width = "400px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("img-gan.png")
+```

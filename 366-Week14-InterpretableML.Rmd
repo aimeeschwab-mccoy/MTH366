@@ -1,0 +1,658 @@
+---
+title: 'Week 14: Interpretable Machine Learning'
+#subtitle: 'Ch. 1: Introduction to Data'
+#subtitle: "<span style = 'font-size: 90%;'>Sections 1.1-1.3</span>"
+author: "MTH 366: Machine Learning"
+date: "Last updated: `r Sys.Date()`"
+#institute: '`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu'
+output:
+  xaringan::moon_reader:
+    css: [xaringan-themer.css, 'hygge']
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-setup, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(primary_color = "#137752",
+                 secondary_color = "#E8FDF5",
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"))
+
+#xaringanExtra::use_logo(
+#  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png"
+#)
+
+
+xaringanExtra::use_tachyons()
+
+xaringanExtra::use_tile_view()
+
+xaringanExtra::use_fit_screen()
+
+xaringanExtra::use_editable(expires = 1)
+
+#xaringanExtra::use_slide_tone()
+
+xaringanExtra::use_panelset()
+
+xaringanExtra::use_extra_styles(hover_code_line = TRUE, mute_unhighlighted_code = FALSE)
+#xaringanExtra::use_extra_styles(mute_unhighlighted_code = TRUE)
+
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6, cache=FALSE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+library(kableExtra)
+```
+
+## Example: Airline customer satisfaction
+
+A major airline surveyed 5000 customers about their most recent flight experience. The airline would like to use this data to determine which factors are most related to customer `Satisfaction`. The data includes:
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+Airport_Survey <- read.csv("~/Dropbox/Interpretable Machine Learning Workshop/satisfaction_2015.csv")
+library(tidyverse)
+
+colnames(Airport_Survey) <- c('ID', 'Satisfaction', 'Gender', 'Customer', 'Age', 'Travel_Type', 'Class', 'Distance', 'Inflight_Wifi', 'Convenient_Time', 'Booking_Ease', 'Gate', 'Food_Drink', 'Boarding_Online', 'Seat', 'Entertainment', 'Onboard_Service', 'Legroom', 'Baggage', 'Checkin_Service', 'Inflight_Service', 'Cleanliness', 'Departure_Delay','Arrival_Delay')
+
+Airport_Survey$Arrival_Delay[is.na(Airport_Survey$Arrival_Delay)] <- 0
+```
+
+```{r, echo=1}
+names(Airport_Survey)
+
+Airport_Survey$Satisfaction <- as.factor(Airport_Survey$Satisfaction)
+Airport_Survey$Gender <- as.factor(Airport_Survey$Gender)
+Airport_Survey$Customer <- as.factor(Airport_Survey$Customer)
+Airport_Survey$Travel_Type <- as.factor(Airport_Survey$Travel_Type)
+Airport_Survey$Class <- as.factor(Airport_Survey$Class)
+
+Airport_Survey <- Airport_Survey %>% sample_n(size=5000)
+```
+
+---
+
+Start with a single decision tree:
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.height=6, fig.width=10}
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+
+tree <- rpart(Satisfaction~., data=Airport_Survey)
+fancyRpartPlot(tree)
+```
+
+---
+
+Expand to a random forest:
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library('randomForest')
+forest <-  randomForest(Satisfaction ~ ., data=Airport_Survey, 
+                        ntree = 50, mtry=4, type='classification', na.action=na.omit)
+forest
+```
+
+---
+
+## Questions
+
+1. Which variables are most important?
+2. How does changing each variable impact the predicted values?
+3. How does changing each variable impact the model accuracy?
+
+---
+
+## Interpretability
+
+- Miller (2017): _"the degree to which a human can understand the cause of a decision"_
+
+--
+
+- Kim et al (2016): _"the degree to which a human can consistenty predict the model's result"_
+
+--
+
+In machine learning, we have a trade-off:
+
+- Do we want to know __what__ is predicted?
+- Do we want to know __why__ that's the prediction?
+
+---
+
+## Interpretability
+
+If a machine learning model is _interpretable_, we can easily check for the following properties (Doshi-Velez and Kim 2017):
+
+- __Fairness__: Ensuring that predictions are unbiased and do not implicitly or explicitly discriminate against protected groups. An interpretable model can tell you why it has decided that a certain person should not get a loan, and it becomes easier for a human to judge whether the decision is based on a learned demographic (e.g. racial) bias.
+- __Privacy__: Ensuring that sensitive information in the data is protected.
+- __Reliability__ or __Robustness__: Ensuring that small changes in the input do not lead to large changes in the prediction.
+- __Causality__: Check that only causal relationships are picked up.
+- __Trust__: It is easier for humans to trust a system that explains its decisions compared to a black box.
+
+---
+
+## Intrinsic interpretability
+
+__Intrinsic interpretability__: restricting the complexity of the machine learning model
+
+--
+
+Examples:
+
+- Linear regression 
+- Logistic regression
+- (Simple) decision trees
+- Naive Bayes
+- k-nearest neighbors
+
+---
+
+## Post-hoc interpretability
+
+__Post-hoc interpretability__: interpretation methods that can be used _after_ model training
+
+--
+
+Desirable aspects of a __model-agnostic__ explanation system are (Ribeiro, Singh, and Guestrin 2016):
+
+- __Model flexibility__: The interpretation method can work with any machine learning model, such as random forests and deep neural networks.
+- __Explanation flexibility__: You are not limited to a certain form of explanation. In some cases it might be useful to have a linear formula, in other cases a graphic with feature importances.
+- __Representation flexibility__: The explanation system should be able to use a different feature representation as the model being explained. For a text classifier that uses abstract word embedding vectors, it might be preferable to use the presence of individual words for the explanation.
+
+---
+
+## Model-agnostic methods
+
+1. Partial dependence plots
+2. Individual conditional expectation
+3. Accumulated local effects
+4. Feature interaction
+5. Global surrogate
+6. Local surrogate (LIME)
+7. Shapley values
+8. SHapley Additive exPlanations (SHAP)
+
+---
+
+## Partial dependence plots
+
+__Partial dependence plots__ (PDP): visualize the marginal effect one or two features have on the predicted outcome of a machine learning model
+
+--
+
+Let $x_S$ be the features for which the PDP will be plotted and $x_C$ be the other features in the machine learning model $S$. 
+
+- Marginalize the model output over the distribution of $x_C$, so that the remaining function shows the relationship between $x_S$ and the predicted outcome.
+
+$$\hat{f}_{x_{S}}(x_{S})=E_{x_{C}}\left[\hat{f}(x_{S},x_{C})\right]$$
+
+
+- Assumption: $x_S$ and $x_C$ are uncorrelated
+
+---
+
+### Example: Flight distance and class
+
+```{r, eval=FALSE}
+Inputs <- Airport_Survey %>% dplyr::select(-Satisfaction)
+Output <- Airport_Survey %>% dplyr::select(Satisfaction)
+predictor <- Predictor$new(forest, data = Inputs, y = Output,
+                           type='prob', class='satisfied')
+
+library(iml)
+pdp <- FeatureEffect$new(predictor, 
+                         feature = c("Distance", 'Class'), 
+                         method='pdp')
+pdp$plot()
+```
+
+---
+
+### Example: Flight distance and class
+
+```{r, echo=FALSE}
+Inputs <- Airport_Survey %>% dplyr::select(-Satisfaction)
+Output <- Airport_Survey %>% dplyr::select(Satisfaction)
+predictor <- Predictor$new(forest, data = Inputs, y = Output,
+                           type='prob', class='satisfied')
+
+pdp <- FeatureEffect$new(predictor, 
+                         feature = c("Distance", 'Class'), 
+                         method='pdp')
+pdp$plot()
+```
+
+---
+
+### Example: Customer and travel type
+
+```{r}
+pdp <-  FeatureEffect$new(predictor, 
+                          feature = c("Customer", 'Travel_Type'), 
+                          method='pdp')
+pdp$plot()
+```
+
+---
+
+## Partial dependence plots
+
+Advantages:
+
+- Intuitive computation: average prediction if we force all data points to take on a particular feature value
+- Easy to produce
+- Causal interpretation: we change the features and measure the resulting change in the predictions
+
+
+Disadvantages:
+
+- Maximum number of features: 2
+- Feature distribution may be omitted (R's `iml` package includes these for numerical variables, but not categorical)
+- Assumption of independence may not be realistic
+- PDPs show the average marginal effect - heterogeneous effects may be hidden
+
+
+---
+
+## Individual conditional expectation
+
+__Individual conditional expectation__ (ICE): plots visualize the dependence of a prediction for each instance _separately_, rather than aggregated as in a partial dependence plot
+
+--
+
+In ICE plots, for each instance in $\{(x_{S}^{(i)},x_{C}^{(i)})\}_{i=1}^N$ the curve $\hat{f}_S^{(i)}$ is plotted against $x^{(i)}_{S}$, while $x^{(i)}_{C}$ remains  fixed.
+
+- Like a partial dependence plot, but with individual plots/curves for each observation.
+
+```{r, eval=FALSE}
+ice <- FeatureEffect$new(predictor, 
+                         feature = c("Distance"), 
+                         method='ice')
+ice$plot()
+```
+
+---
+
+### Individual conditional expectation
+
+
+Advantages:
+
+- Can see how predictions change for each individual instance
+- Can see heterogeneous relationships
+
+Diasdvantages:
+
+- Maximum number of features: 1
+- Plot can become overcrowded
+- Difficult to see the average
+
+---
+
+Solution: Combine partial dependence plot and individual conditional expectation into one
+
+```{r}
+ice <- FeatureEffect$new(predictor, 
+                         feature = c("Distance"), 
+                         method='pdp+ice')
+ice$plot()
+```
+
+---
+
+## Accumulated local effects
+
+If features in a machine learning model are correlated, the partial dependence plot is untrustworthy. 
+
+Solution: __accumulated local effects__ (ALE)
+
+1. Split the data into bins
+2. Within each bin, calculate the difference in predictions based on the conditional distribution of the features
+
+ALE plots show you how model predictions change in a small "window" of the feature.
+
+
+---
+
+## Accumulated local effects
+
+1. Average _changes_ of predictions, not the actual predictions
+2. Accumulate local changes over the range of features in $S$, in computation $z$ gets replaced by a grid of intervals
+3. Subtract a constant from the results, average effect is 0
+
+---
+
+### Example: ALE for Distance
+
+```{r}
+ale <- FeatureEffect$new(predictor, 
+                         feature = "Distance")
+ale$plot()
+```
+
+---
+
+### Example: ALE for class, distance
+
+```{r}
+ale <- FeatureEffect$new(predictor, 
+                         feature = c('Class', "Distance"))
+ale$plot()
+```
+
+---
+
+### Accumulated local expectation
+
+
+Advantages:
+
+- Unbiased, will still work with correlated features
+- Faster to compute than PDPs
+- Centered at 0: negative ALE indicates a negative relative effect on output feature, positive indicates positive effect
+- 2D ALE plot shows interaction: if two features have no interaction, this will be a boring plot
+
+Diasdvantages:
+
+- Changes depending on number of bins
+- Accuracy of estimates depends on the number of instances in each bin
+- Interaction effects may be difficult to implement
+- Not yet implemented for two categorical variables
+
+---
+
+## Feature interaction
+
+Suppose we want to make a prediction based on two features: $X_1$ and $X_2$. The prediction can be _decomposed_ into four terms:
+
+$$\hat{y_i} = \beta_0 + \beta_1 X_{1i} + \beta_2 X_{2i} + \beta_3 (X_{1i} X_{2i})$$
+
+.full-width[.content-box-yellow[__H-statistic__: measures how much of the variation in the prediction depends on the interaction of the features]]
+
+---
+
+## Feature interaction
+
+H-statistic for the interaction between feature $j$ and $k$:
+
+$$H^2_{jk}=\sum_{i=1}^n\left[PD_{jk}(x_{j}^{(i)},x_k^{(i)})-PD_j(x_j^{(i)})-PD_k(x_{k}^{(i)})\right]^2/\sum_{i=1}^n{PD}^2_{jk}(x_j^{(i)},x_k^{(i)})$$
+
+where $PD_{-j}(x_{-j})$ is the partial dependence function that depends on all features except the j-th feature.
+
+--
+
+- $H^2_jk = 0$ if there is not interaction between the features
+- $H^2_jk = 1$ if the total variance of the interaction term is explained by the sum of the partial dependence functions
+- $H^2_jk >1 $ if the variance of the two-way interaction is larger than the variance of the two-dimensional partial dependence plot
+
+---
+
+### Example: Class and type
+
+```{r}
+int <- Interaction$new(predictor, 
+                       feature='Class', grid.size=10)
+int$plot()
+```
+
+---
+
+### Feature interaction
+
+Advantages:
+
+- Meaningful interpretation: share of variance explained by the interaction
+- Dimensionless
+- Works for all kinds of interactions, regardless of form
+
+Diasdvantages:
+
+- Computationally expensive
+- No measure of "significance"
+
+---
+
+## Global surrogate
+
+Idea: approximate the predictions of the underlying (complex) model as accurately as possible using an intrinsically interpretable model (such as regression)
+
+--
+
+1. For the data, fit the "black box" model and make predictions
+2. Choose an intrinsically interpretable model, and fit it to the "black box" predictions
+3. Measure how well the surrogate model replicates the predictions of the black box model
+4. Interpret the surrogate model
+
+---
+
+### Example: decision tree
+
+```{r}
+tree <- TreeSurrogate$new(predictor, maxdepth = 2)
+tree$r.squared
+plot(tree)
+```
+
+---
+
+### Surrogate: logistic regression
+
+```{r, eval=FALSE}
+predictions <- predictor$predict(Inputs)
+
+Airport_Survey2 <- Airport_Survey %>%
+  mutate(Predictions = predictions$satisfied)
+
+logistic <- glm(Predictions ~ . - ID - Satisfaction,  #<<
+                data=Airport_Survey2, family='binomial') #<<
+
+cor(logistic$fitted.values, predictions$satisfied)
+summary(logistic)
+```
+
+---
+
+### Surrogate: logistic regression
+
+```{r, echo=FALSE}
+predictions <- predictor$predict(Inputs)
+
+Airport_Survey2 <- Airport_Survey %>%
+  mutate(Predictions = predictions$satisfied)
+
+logistic <- glm(Predictions ~ . - ID - Satisfaction,  #<<
+                data=Airport_Survey2, family='binomial') #<<
+
+cor(logistic$fitted.values, predictions$satisfied)
+summary(logistic)
+```
+
+---
+
+## Local surrogate (LIME)
+
+__LIME__: local interpretable model-agnostic explanations, train local surrogate models to explain individual predictions
+
+--
+
+- LIME tests what happens to the predictions when you give variations of your data into the machine learning model
+- Generates a new data set consisting of permuted samples and the corresponding predictions of the black box model
+- Train an interpretable model on the new dataset, weighted by the proximity of the sampled instances to the instance of interest
+- Learned model should be a good approximation _locally_, but not necessarily _globally_
+
+---
+
+## LIME algorithm
+
+1. Select your instance of interest for which you want to have an explanation of its black box prediction.
+2. Perturb your dataset and get the black box predictions for these new points.
+3. Weight the new samples according to their proximity to the instance of interest.
+4. Train a weighted, interpretable model on the dataset with the variations.
+5. Explain the prediction by interpreting the local model.
+
+The devil is in the details...
+
+---
+
+### Example: Observation 1
+
+```{r, message=FALSE, warning=FALSE}
+lime.explain <- LocalModel$new(predictor, x.interest = Inputs[1,])
+plot(lime.explain)
+```
+
+---
+
+### Example: Observation 415
+
+```{r}
+lime.explain <- LocalModel$new(predictor, x.interest = Inputs[415,])
+plot(lime.explain)
+```
+
+---
+
+### Surrogate models and LIME
+
+Advantages:
+
+- Can use a "black box" model for prediction and an interpretable model for explaining
+- Explanations tend to be short and simple
+- Fidelity measure tells us how reliable the interpretable model is
+- Works for text and images too
+
+Diasdvantages:
+
+- Defining the neighborhood is an open problem (trial and error)
+- Explanations of two close points can very greatly depending on random sampling
+
+---
+
+## Shapley values
+
+__Shapley values__ come from game theory: assume that each feature value of the instance is playing a "game" where the prediction is the payout. How do we "fairly" distribute the payout among the features?
+
+--
+
+Shapley value of the $j^{th}$ feature: contribution $\phi_j$ to the prediction of this instance compared to the average prediction
+
+- Positive Shapley values: increase compared to the average prediction
+
+---
+
+### Example: Shapley values instance 1
+
+```{r}
+shapley <- Shapley$new(predictor, x.interest = Inputs[1,])
+shapley$plot()
+```
+
+---
+
+### Example: Shapley values instance 415
+
+```{r}
+shapley <- Shapley$new(predictor, x.interest = Inputs[415,])
+shapley$plot()
+```
+
+---
+
+## Shapely values
+
+
+Advantages:
+
+- Solid mathematical theory
+- Can compare predictions to average prediction, subset, or other data points
+
+
+Diasdvantages:
+
+- Computationally expensive
+- _Not_ the difference of the predicted value (contribution of a feature to the difference between the actual and mean prediction)
+- Not a sparse explanation
+
+---
+
+## SHapley Additive exPlanations (SHAP)
+
+__SHapley Additive exPlanations__ (SHAP) modify the Shapley value to create a global interpretation
+
+$$g(z')=\phi_0+\sum_{j=1}^M\phi_jz_j'$$
+
+where $g$ is the explanation model, $z'$ is a feature vector, $M$ is the "coalition size" (number of instances to combine), and $\phi_j$ are the Shapley values.
+
+--
+
+__LIME v. SHAP__: 
+
+- LIME weights according to how close the perturbed instances are to the origianl instance
+- SHAP weights according to the weight from the Shapely value estimation
+
+---
+
+## Summary
+
+Effect of a feature on predictions:
+
+- Partial dependence plots
+- Individual conditional expectation plots
+- Accumulated local effects
+- SHapley Additive exPlanations (SHAP)
+
+--
+
+Interactions between features: 
+
+- Feature interaction plots
+- Variable interaction networks
+- Partial dependence based feature interaction
+
+---
+
+## Summary
+
+Intrinisically interpretable approximations: 
+
+- Global surrogate
+- Local interpretable model-agnostic explanations (LIME)
+
+--
+
+Individual instances:
+
+- Shapley values
+- Local interpretable model-agnostic explanations (LIME)
+
+---
+
+## Software options
+
+Method|R packages|Python packages
+------|--------|--------
+Partial dependence plots|`iml`, `pdp`, `DALEX`|`Skater`
+Individual conditional expectation|`iml`, `ICEbox`, `pdp`, `condvis`|
+Accumulated local effects|`iml`|`ALEPlot`|
+Feature interaction|`iml`, `pre`, `gbm`|
+Global surrogate|`iml` for decision trees|
+Local surrogate (LIME)|`iml`, `lime`|`Skater`, `lime`
+Shapley values|`iml`, `breakDown`|`shap`
+SHapley Additive exPlanations (SHAP)|`shapper`, `xgboost`|`shap`
